@@ -3,41 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>クイズコンソール - いたずら防止完全版</title>
+    <title>クイズコンソール - 完全統合版</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
         body { font-family: "Helvetica Neue", Arial, sans-serif; display: flex; flex-direction: column; align-items: center; background-color: #eef2f3; padding: 20px; color: #333; margin: 0; }
-        .main-layout { display: flex; gap: 20px; width: 100%; max-width: 1350px; align-items: flex-start; }
+        .main-layout { display: flex; gap: 20px; width: 100%; max-width: 1400px; align-items: flex-start; }
         .container { background: white; padding: 1.5rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); flex: 1; }
-        .sidebar { width: 350px; background: white; padding: 1rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-height: 90vh; overflow-y: auto; }
+        .sidebar { width: 450px; background: white; padding: 1rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-height: 90vh; overflow-y: auto; }
         
         /* 管理者カンペ */
-        .admin-script-area { background: #fff9db; border: 2px solid #f1c40f; padding: 12px; border-radius: 10px; margin-bottom: 15px; font-size: 0.95rem; }
+        .admin-script-area { background: #fff9db; border: 2px solid #f1c40f; padding: 12px; border-radius: 10px; margin-bottom: 15px; }
         #adminAnswer { color: #e74c3c; font-weight: bold; font-size: 1.2rem; }
 
         /* 文字種別表示パネル */
         .char-type-panel { background: #f1f2f6; padding: 10px; border-radius: 12px; margin-bottom: 15px; border: 2px solid #3498db; }
-        .btn-type { background: #fff; border: 1px solid #3498db; color: #3498db; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; margin: 2px; }
-        
-        /* メイン表示（透明テキスト） */
+        .btn-type { background: #fff; border: 1px solid #3498db; color: #3498db; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin: 2px; font-weight: bold; }
+        .btn-type:hover { background: #3498db; color: white; }
+
+        /* 問題表示 */
         #display { font-size: 1.6rem; min-height: 4.5em; border: 2px solid #ddd; padding: 20px; border-radius: 12px; margin-bottom: 15px; background: #fafafa; white-space: pre-wrap; line-height: 1.6; width: 100%; box-sizing: border-box; }
         #display span.hidden { color: transparent; user-select: none; }
 
-        .genre-selector { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; }
+        /* 問題リストのスタイル改善 */
+        .quiz-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s; font-size: 0.85rem; }
+        .quiz-item:hover { background: #f0f7ff; }
+        .quiz-item .q-text { color: #2c3e50; font-weight: bold; margin-bottom: 4px; display: block; }
+        .quiz-item .a-text { color: #e74c3c; font-size: 0.8rem; background: #fee; padding: 2px 6px; border-radius: 4px; }
+
+        .genre-selector { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; position: sticky; top: 0; background: white; padding-bottom: 10px; z-index: 10; }
         .btn-genre { background: #ecf0f1; border: 1px solid #bdc3c7; font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
-        .btn-genre.active { background: #3498db; color: white; }
+        .btn-genre.active { background: #3498db; color: white; border-color: #2980b9; }
 
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         button { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:disabled { opacity: 0.5; cursor: not-allowed !important; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background: #3498db; color: white; }
         .btn-stop { background: #e74c3c; color: white; }
 
-        /* 解答者ボタン：いたずら防止用 */
-        #remote-button { width: 280px; height: 280px; border-radius: 50%; border: 12px solid #7f8c8d; background: #95a5a6; color: white; font-size: 3rem; display: none; margin: 20px auto; box-shadow: 0 10px #7f8c8d; transition: 0.2s; }
+        /* 解答者ボタン */
+        #remote-button { width: 280px; height: 280px; border-radius: 50%; border: 12px solid #7f8c8d; background: #95a5a6; color: white; font-size: 3rem; display: none; margin: 20px auto; box-shadow: 0 10px #7f8c8d; transition: 0.1s; }
         #remote-button.active { border-color: #c0392b; background: #e74c3c; box-shadow: 0 10px #962d22; cursor: pointer; }
-        #remote-button:active { transform: translateY(5px); box-shadow: 0 5px #962d22; }
     </style>
 </head>
 <body>
@@ -53,12 +59,12 @@
         <button class="btn-primary" style="background:#8e44ad; width:100%; margin-bottom:15px;" onclick="openSubWindow()">💻 視聴者用画面を開く</button>
         
         <div class="admin-script-area">
-            <div><strong>【カンペ】正解：</strong><span id="adminAnswer">-</span></div>
-            <div id="adminFullText" style="margin-top:5px; color:#555;">問題を選択してください</div>
+            <div><strong>【出題中】正解：</strong><span id="adminAnswer">-</span></div>
+            <div id="adminFullText" style="margin-top:5px; color:#555; font-size: 0.9rem;">問題を選択してください</div>
         </div>
 
         <div class="char-type-panel">
-            <span>🔠 文字種別表示 (視聴者画面へ)</span>
+            <span>🔠 文字種別ヒント (押すと解答許可されます)</span>
             <button class="btn-type" onclick="revealByType('symbol')">記号</button>
             <button class="btn-type" onclick="revealByType('hiragana')">かな</button>
             <button class="btn-type" onclick="revealByType('katakana')">カナ</button>
@@ -69,12 +75,12 @@
         <div id="display">待機中...</div>
 
         <div class="controls">
-            <button id="startBtn" class="btn-primary" onclick="startQuiz()">出題開始（解答許可）</button>
+            <button id="startBtn" class="btn-primary" onclick="startQuiz()">自動読み上げ開始</button>
             <button id="stopBtn" class="btn-stop" onclick="stopQuiz()" disabled>一時停止</button>
         </div>
         <div class="controls">
             <button id="randBtn" class="btn-primary" style="background:#2ecc71;" onclick="setNextRandom()">🎲 ランダム出題</button>
-            <button id="backBtn" class="btn-primary" style="background:#95a5a6;" onclick="goBack()" disabled>🔙 前へ</button>
+            <button id="backBtn" class="btn-primary" style="background:#95a5a6;" onclick="goBack()" disabled>🔙 前へ戻る</button>
         </div>
     </div>
 
@@ -102,7 +108,6 @@
 </div>
 
 <script>
-    // --- 初期設定 ---
     const URLS = {
         anime: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTBRf9k4zS7Ht5s7GKejqT2d-cyWbDHd19DwTPmAzoHe40d9nV1cVu-RH565sIq9GbYmEKkzhpBytp/pub?output=csv",
         social: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXVYOqHu_0VRIkiVK0RQO-ZWPZ6pHGqIw5VxBWdOlg3-HbP3q26gM0fVxTndREhjqbaxFzcjeuoMcE/pub?output=csv",
@@ -123,10 +128,8 @@
     let limitTimer = null;
     let subWindow = null;
     let currentGenre = 'all';
-    let intervalTime = 150;
     let historyStack = [];
 
-    // --- コア機能 ---
     async function initRole(role) {
         document.getElementById("role-ui").style.display = "none";
         document.getElementById(role + "-ui").style.display = (role === 'admin' ? 'flex' : 'block');
@@ -142,10 +145,29 @@
 
     function parseCSV(t) { return t.split(/\r?\n/).slice(1).filter(r => r.trim() !== "").map(row => { const p = row.split(","); return { q: p[0] || "", a: p[1] || "" }; }); }
 
+    // 文字種別表示 + 解答許可
+    function revealByType(type) {
+        if (!currentQuiz.q) return;
+        // 読み上げなしでこのボタンを押した場合も解答できるようにステータスをactiveにする
+        db.ref("status").set("active"); 
+        
+        const text = currentQuiz.q;
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            let reveal = (type === 'all');
+            if (type === 'symbol' && (char.match(/[^\w\s\u3040-\u30ff\u4e00-\u9faf]/) || "！？〜".includes(char))) reveal = true;
+            if (type === 'hiragana' && char.match(/[\u3040-\u309f]/)) reveal = true;
+            if (type === 'katakana' && char.match(/[\u30a0-\u30ff]/)) reveal = true;
+            if (type === 'kanji' && char.match(/[\u4e00-\u9faf]/)) reveal = true;
+            if (reveal && !revealedIndexes.includes(i)) revealedIndexes.push(i);
+        }
+        syncDisplay();
+    }
+
     function startQuiz() {
         if (isRunning || !currentQuiz.q) return;
         isRunning = true;
-        db.ref("status").set("active"); // これにより解答者のボタンが有効化される
+        db.ref("status").set("active");
         document.getElementById("startBtn").disabled = true; 
         document.getElementById("stopBtn").disabled = false;
         timer = setInterval(() => {
@@ -153,64 +175,26 @@
                 let next = 0; while(revealedIndexes.includes(next)) next++;
                 revealedIndexes.push(next); syncDisplay();
             } else { stopQuiz(); }
-        }, intervalTime);
+        }, 150);
     }
 
     function stopQuiz() { isRunning = false; clearInterval(timer); document.getElementById("startBtn").disabled = false; document.getElementById("stopBtn").disabled = true; }
 
-    function setupPlayer() {
-        const nameInput = document.getElementById("playerName");
-        const btn = document.getElementById("remote-button");
-        const inputArea = document.getElementById("answer-input-area");
-        const timerEl = document.getElementById("timer-display");
-        const msg = document.getElementById("status-msg");
-
-        db.ref("status").on("value", snap => {
-            const s = snap.val();
-            if (s === "active") {
-                // 出題開始時のみボタンを有効化
-                btn.style.display = "block";
-                btn.disabled = false;
-                btn.classList.add("active");
-                btn.innerText = "PUSH!";
-                inputArea.style.display = "none";
-                timerEl.style.display = "none";
-                msg.innerText = "読み上げ中：押せます！";
-                msg.style.color = "#e74c3c";
-            } else if (s === "pushed") {
-                btn.disabled = true;
-                btn.classList.remove("active");
-                db.ref("winner").once("value", ws => {
-                    const winName = ws.val();
-                    if (winName === nameInput.value) {
-                        btn.style.display = "none";
-                        inputArea.style.display = "block";
-                        timerEl.style.display = "block";
-                        msg.innerText = "あなたの番です！";
-                        document.getElementById("playerAnswerField").focus();
-                    } else {
-                        btn.innerText = "WAIT";
-                        msg.innerText = winName + "さんが回答中...";
-                    }
-                });
-            } else {
-                // 待機中（idleなど）はボタンをグレーアウトして無効化
-                btn.style.display = "block";
-                btn.disabled = true;
-                btn.classList.remove("active");
-                btn.innerText = "待機中";
-                inputArea.style.display = "none";
-                timerEl.style.display = "none";
-                msg.innerText = "出題をお待ちください...";
-                msg.style.color = "#333";
-            }
-        });
-
-        db.ref("countdown").on("value", snap => { if (timerEl) timerEl.innerText = "残り " + snap.val() + " 秒"; });
-        db.ref("feedback").on("value", snap => { if (snap.val()) msg.innerText = snap.val(); });
+    function refreshCandidateList() {
+        let pool = currentGenre === 'all' ? Object.values(masterData).flat() : masterData[currentGenre];
+        let available = pool.filter(item => !usedQuizzes.has(item.q));
+        // 全件表示で見やすくする
+        document.getElementById("quizList").innerHTML = available.slice(0, 20).map(item => {
+            const safeQ = item.q.replace(/'/g,"\\'");
+            const safeA = item.a.replace(/'/g,"\\'");
+            return `
+            <div class="quiz-item" onclick="applyQuiz({q:'${safeQ}', a:'${safeA}'})">
+                <span class="q-text">${item.q}</span>
+                <span class="a-text">答: ${item.a}</span>
+            </div>`;
+        }).join("");
     }
 
-    // --- 以下、補助ロジック（カンペ、ジャンル、ランダム等） ---
     function applyQuiz(quizObj, isBack = false) {
         if (isRunning) stopQuiz();
         if (!isBack && currentQuiz.q) historyStack.push({...currentQuiz});
@@ -223,6 +207,7 @@
         document.getElementById("backBtn").disabled = historyStack.length === 0;
         if (subWindow && !subWindow.closed) subWindow.resetForNext();
         syncDisplay();
+        refreshCandidateList(); // 出題済みを除去するために更新
     }
 
     function syncDisplay() {
@@ -233,9 +218,48 @@
         if (subWindow && !subWindow.closed) subWindow.document.getElementById("text").innerHTML = html;
     }
 
+    function setupPlayer() {
+        const nameInput = document.getElementById("playerName");
+        const btn = document.getElementById("remote-button");
+        const inputArea = document.getElementById("answer-input-area");
+        const timerEl = document.getElementById("timer-display");
+        const msg = document.getElementById("status-msg");
+
+        db.ref("status").on("value", snap => {
+            const s = snap.val();
+            if (s === "active") {
+                btn.style.display = "block"; btn.disabled = false; btn.classList.add("active"); btn.innerText = "PUSH!";
+                inputArea.style.display = "none"; timerEl.style.display = "none";
+                msg.innerText = "出題中：押せます！"; msg.style.color = "#e74c3c";
+            } else if (s === "pushed") {
+                btn.disabled = true; btn.classList.remove("active");
+                db.ref("winner").once("value", ws => {
+                    if (ws.val() === nameInput.value) {
+                        btn.style.display = "none"; inputArea.style.display = "block"; timerEl.style.display = "block";
+                        msg.innerText = "解答してください！"; document.getElementById("playerAnswerField").focus();
+                    } else { btn.innerText = "WAIT"; msg.innerText = ws.val() + "さんが回答中..."; }
+                });
+            } else {
+                btn.style.display = "block"; btn.disabled = true; btn.classList.remove("active"); btn.innerText = "待機中";
+                inputArea.style.display = "none"; timerEl.style.display = "none";
+                msg.innerText = "待機しています..."; msg.style.color = "#333";
+            }
+        });
+        db.ref("countdown").on("value", snap => { if (timerEl) timerEl.innerText = "残り " + snap.val() + " 秒"; });
+        db.ref("feedback").on("value", snap => { if (snap.val()) msg.innerText = snap.val(); });
+    }
+
     function pushButton() {
         const name = document.getElementById("playerName").value || "名無し";
         db.ref("status").transaction(curr => { if (curr === "active") { db.ref("winner").set(name); return "pushed"; } });
+    }
+
+    function submitAnswer() {
+        const ans = document.getElementById("playerAnswerField").value;
+        const name = document.getElementById("playerName").value || "名無し";
+        if (!ans) return;
+        db.ref("submit").set({ user: name, text: ans });
+        document.getElementById("playerAnswerField").value = "";
     }
 
     function changeGenre(g) {
@@ -243,16 +267,6 @@
         document.querySelectorAll('.btn-genre').forEach(b => b.classList.remove('active'));
         document.getElementById('g-' + g).classList.add('active');
         refreshCandidateList();
-    }
-
-    function refreshCandidateList() {
-        let pool = currentGenre === 'all' ? Object.values(masterData).flat() : masterData[currentGenre];
-        let available = pool.filter(item => !usedQuizzes.has(item.q));
-        let selected = available.sort(() => 0.5 - Math.random()).slice(0, 10);
-        document.getElementById("quizList").innerHTML = selected.map(item => `
-            <div class="quiz-item" onclick="applyQuiz({q:'${item.q.replace(/'/g,"")}', a:'${item.a.replace(/'/g,"")}'})">
-                ${item.q.substring(0,30)}...
-            </div>`).join("");
     }
 
     function setNextRandom() {
@@ -313,29 +327,6 @@
             }, 2000);
         }
         db.ref("submit").set(null);
-    }
-    
-    function revealByType(type) {
-        if (!currentQuiz.q) return;
-        const text = currentQuiz.q;
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            let reveal = (type === 'all');
-            if (type === 'symbol' && (char.match(/[^\w\s\u3040-\u30ff\u4e00-\u9faf]/) || "！？〜".includes(char))) reveal = true;
-            if (type === 'hiragana' && char.match(/[\u3040-\u309f]/)) reveal = true;
-            if (type === 'katakana' && char.match(/[\u30a0-\u30ff]/)) reveal = true;
-            if (type === 'kanji' && char.match(/[\u4e00-\u9faf]/)) reveal = true;
-            if (reveal && !revealedIndexes.includes(i)) revealedIndexes.push(i);
-        }
-        syncDisplay();
-    }
-
-    function submitAnswer() {
-        const ans = document.getElementById("playerAnswerField").value;
-        const name = document.getElementById("playerName").value || "名無し";
-        if (!ans) return;
-        db.ref("submit").set({ user: name, text: ans });
-        document.getElementById("playerAnswerField").value = "";
     }
 </script>
 </body>
