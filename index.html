@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>クイズコンソール - 文字種別表示モード版</title>
+    <title>クイズコンソール - いたずら防止完全版</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -12,33 +12,32 @@
         .container { background: white; padding: 1.5rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); flex: 1; }
         .sidebar { width: 350px; background: white; padding: 1rem; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-height: 90vh; overflow-y: auto; }
         
-        /* 文字種別表示ボタン */
+        /* 管理者カンペ */
+        .admin-script-area { background: #fff9db; border: 2px solid #f1c40f; padding: 12px; border-radius: 10px; margin-bottom: 15px; font-size: 0.95rem; }
+        #adminAnswer { color: #e74c3c; font-weight: bold; font-size: 1.2rem; }
+
+        /* 文字種別表示パネル */
         .char-type-panel { background: #f1f2f6; padding: 10px; border-radius: 12px; margin-bottom: 15px; border: 2px solid #3498db; }
-        .char-type-panel span { font-size: 0.8rem; font-weight: bold; display: block; margin-bottom: 5px; color: #2980b9; }
-        .btn-type { background: #fff; border: 1px solid #3498db; color: #3498db; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; margin: 2px; }
-        .btn-type:hover { background: #3498db; color: white; }
+        .btn-type { background: #fff; border: 1px solid #3498db; color: #3498db; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; margin: 2px; }
+        
+        /* メイン表示（透明テキスト） */
+        #display { font-size: 1.6rem; min-height: 4.5em; border: 2px solid #ddd; padding: 20px; border-radius: 12px; margin-bottom: 15px; background: #fafafa; white-space: pre-wrap; line-height: 1.6; width: 100%; box-sizing: border-box; }
+        #display span.hidden { color: transparent; user-select: none; }
 
         .genre-selector { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; }
         .btn-genre { background: #ecf0f1; border: 1px solid #bdc3c7; font-size: 0.8rem; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
         .btn-genre.active { background: #3498db; color: white; }
 
-        .quiz-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 0.85rem; }
-        .quiz-item:hover { background: #f0f7ff; }
-
-        #display { font-size: 1.6rem; min-height: 4.5em; border: 2px solid #ddd; padding: 20px; border-radius: 12px; margin-bottom: 15px; background: #fafafa; white-space: pre-wrap; line-height: 1.6; width: 100%; box-sizing: border-box; }
-        #display span.hidden { color: transparent; user-select: none; }
-
-        .speed-control { background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #dee2e6; font-size: 0.8rem; }
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         button { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:disabled { opacity: 0.5; cursor: not-allowed !important; }
         .btn-primary { background: #3498db; color: white; }
         .btn-stop { background: #e74c3c; color: white; }
-        .custom-area { margin-top: 15px; padding: 10px; border: 2px dashed #3498db; border-radius: 8px; background: #f0f9ff; }
-        textarea { width: 100%; height: 50px; border-radius: 6px; border: 1px solid #ccc; padding: 5px; box-sizing: border-box; }
 
-        /* 回答者UI */
-        #remote-button { width: 280px; height: 280px; border-radius: 50%; border: 12px solid #c0392b; background: #e74c3c; color: white; font-size: 3rem; display: none; margin: 20px auto; box-shadow: 0 10px #962d22; }
-        #timer-display { font-size: 2.5rem; font-weight: bold; display: none; margin-bottom: 10px; }
+        /* 解答者ボタン：いたずら防止用 */
+        #remote-button { width: 280px; height: 280px; border-radius: 50%; border: 12px solid #7f8c8d; background: #95a5a6; color: white; font-size: 3rem; display: none; margin: 20px auto; box-shadow: 0 10px #7f8c8d; transition: 0.2s; }
+        #remote-button.active { border-color: #c0392b; background: #e74c3c; box-shadow: 0 10px #962d22; cursor: pointer; }
+        #remote-button:active { transform: translateY(5px); box-shadow: 0 5px #962d22; }
     </style>
 </head>
 <body>
@@ -53,39 +52,29 @@
     <div class="container">
         <button class="btn-primary" style="background:#8e44ad; width:100%; margin-bottom:15px;" onclick="openSubWindow()">💻 視聴者用画面を開く</button>
         
+        <div class="admin-script-area">
+            <div><strong>【カンペ】正解：</strong><span id="adminAnswer">-</span></div>
+            <div id="adminFullText" style="margin-top:5px; color:#555;">問題を選択してください</div>
+        </div>
+
         <div class="char-type-panel">
-            <span>🔠 文字種別表示モード (視聴者画面に即時表示)</span>
-            <button class="btn-type" onclick="revealByType('symbol')">記号 (!?〜)</button>
+            <span>🔠 文字種別表示 (視聴者画面へ)</span>
+            <button class="btn-type" onclick="revealByType('symbol')">記号</button>
             <button class="btn-type" onclick="revealByType('hiragana')">かな</button>
             <button class="btn-type" onclick="revealByType('katakana')">カナ</button>
             <button class="btn-type" onclick="revealByType('kanji')">漢字</button>
             <button class="btn-type" onclick="revealByType('all')">全表示</button>
         </div>
 
-        <div class="speed-control">
-            ⏱ 読み上げ速度: <span id="speedValue">150</span>ms
-            <input type="range" id="speedRange" min="50" max="600" step="10" value="150" style="width:100%" oninput="updateSpeed(this.value)">
-        </div>
-
-        <div id="winner-display" style="display:none; background: #f39c12; color: white; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px;">
-            🔔 <span id="winner-name">---</span> さん回答中... <span id="admin-countdown" style="font-size:1.5rem; margin-left:10px;">10</span>
-        </div>
-
         <div id="display">待機中...</div>
 
         <div class="controls">
-            <button id="startBtn" class="btn-primary" onclick="startQuiz()">自動読み上げ開始</button>
-            <button id="stopBtn" class="btn-stop" onclick="stopQuiz()" disabled>停止</button>
+            <button id="startBtn" class="btn-primary" onclick="startQuiz()">出題開始（解答許可）</button>
+            <button id="stopBtn" class="btn-stop" onclick="stopQuiz()" disabled>一時停止</button>
         </div>
         <div class="controls">
             <button id="randBtn" class="btn-primary" style="background:#2ecc71;" onclick="setNextRandom()">🎲 ランダム出題</button>
-            <button id="backBtn" class="btn-primary" style="background:#95a5a6;" onclick="goBack()" disabled>🔙 前の問題</button>
-        </div>
-
-        <div class="custom-area">
-            <strong>➕ 自作問題差し込み</strong>
-            <textarea id="customInput" placeholder="問題文,正解"></textarea>
-            <button class="btn-primary" style="width:100%; padding:5px; background:#16a085; font-size:0.8rem;" onclick="addCustomQuiz()">追加</button>
+            <button id="backBtn" class="btn-primary" style="background:#95a5a6;" onclick="goBack()" disabled>🔙 前へ</button>
         </div>
     </div>
 
@@ -95,8 +84,7 @@
             <button id="g-anime" class="btn-genre" onclick="changeGenre('anime')">アニメ</button>
             <button id="g-social" class="btn-genre" onclick="changeGenre('social')">社会</button>
             <button id="g-life" class="btn-genre" onclick="changeGenre('life')">ライフ</button>
-            <button id="g-sport" class="btn-genre" onclick="changeGenre('sport')">スポーツ</button>
-            <button id="g-custom" class="btn-genre" onclick="changeGenre('custom')">自作</button>
+            <button id="g-sport" class="btn-genre" onclick="changeGenre('sport')">スポ</button>
         </div>
         <div id="quizList"></div>
     </div>
@@ -104,17 +92,17 @@
 
 <div id="player-ui" class="container" style="display:none; text-align:center;">
     <input type="text" id="playerName" placeholder="名前を入力" style="padding:15px; width:80%; font-size:1.2rem; margin-bottom:20px; border-radius:8px; border:1px solid #ccc;">
-    <div id="status-msg" style="font-size:1.5rem; font-weight:bold; margin-bottom:10px;">待機中...</div>
-    <div id="timer-display">残り 10 秒</div>
-    <button id="remote-button" onclick="pushButton()">PUSH!</button>
+    <div id="status-msg" style="font-size:1.5rem; font-weight:bold; margin-bottom:10px;">接続中...</div>
+    <div id="timer-display" style="font-size: 2.5rem; font-weight: bold; display: none; margin-bottom: 10px;">残り 10 秒</div>
+    <button id="remote-button" disabled onclick="pushButton()">PUSH!</button>
     <div id="answer-input-area" style="display:none; margin-top:20px;">
         <input type="text" id="playerAnswerField" placeholder="答えを入力...">
-        <button id="submitAnsBtn" class="btn-primary" style="width:100%; margin-top:10px;" onclick="submitAnswer()">送信</button>
+        <button id="submitAnsBtn" class="btn-primary" style="width:100%; margin-top:10px;" onclick="submitAnswer()">回答送信</button>
     </div>
 </div>
 
 <script>
-    // --- 初期化 & Firebase設定 ---
+    // --- 初期設定 ---
     const URLS = {
         anime: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTBRf9k4zS7Ht5s7GKejqT2d-cyWbDHd19DwTPmAzoHe40d9nV1cVu-RH565sIq9GbYmEKkzhpBytp/pub?output=csv",
         social: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXVYOqHu_0VRIkiVK0RQO-ZWPZ6pHGqIw5VxBWdOlg3-HbP3q26gM0fVxTndREhjqbaxFzcjeuoMcE/pub?output=csv",
@@ -138,7 +126,7 @@
     let intervalTime = 150;
     let historyStack = [];
 
-    // --- ロジック ---
+    // --- コア機能 ---
     async function initRole(role) {
         document.getElementById("role-ui").style.display = "none";
         document.getElementById(role + "-ui").style.display = (role === 'admin' ? 'flex' : 'block');
@@ -153,24 +141,101 @@
     }
 
     function parseCSV(t) { return t.split(/\r?\n/).slice(1).filter(r => r.trim() !== "").map(row => { const p = row.split(","); return { q: p[0] || "", a: p[1] || "" }; }); }
-    function updateSpeed(val) { intervalTime = parseInt(val); document.getElementById("speedValue").innerText = val; }
 
-    // 文字種別判定と表示
-    function revealByType(type) {
-        if (!currentQuiz.q) return;
-        const text = currentQuiz.q;
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            let shouldReveal = false;
-            if (type === 'all') shouldReveal = true;
-            else if (type === 'symbol' && (char.match(/[^\w\s\u3040-\u30ff\u4e00-\u9faf]/) || char === '？' || char === '！' || char === '〜')) shouldReveal = true;
-            else if (type === 'hiragana' && char.match(/[\u3040-\u309f]/)) shouldReveal = true;
-            else if (type === 'katakana' && char.match(/[\u30a0-\u30ff]/)) shouldReveal = true;
-            else if (type === 'kanji' && char.match(/[\u4e00-\u9faf]/)) shouldReveal = true;
+    function startQuiz() {
+        if (isRunning || !currentQuiz.q) return;
+        isRunning = true;
+        db.ref("status").set("active"); // これにより解答者のボタンが有効化される
+        document.getElementById("startBtn").disabled = true; 
+        document.getElementById("stopBtn").disabled = false;
+        timer = setInterval(() => {
+            if (revealedIndexes.length < currentQuiz.q.length) {
+                let next = 0; while(revealedIndexes.includes(next)) next++;
+                revealedIndexes.push(next); syncDisplay();
+            } else { stopQuiz(); }
+        }, intervalTime);
+    }
 
-            if (shouldReveal && !revealedIndexes.includes(i)) revealedIndexes.push(i);
-        }
+    function stopQuiz() { isRunning = false; clearInterval(timer); document.getElementById("startBtn").disabled = false; document.getElementById("stopBtn").disabled = true; }
+
+    function setupPlayer() {
+        const nameInput = document.getElementById("playerName");
+        const btn = document.getElementById("remote-button");
+        const inputArea = document.getElementById("answer-input-area");
+        const timerEl = document.getElementById("timer-display");
+        const msg = document.getElementById("status-msg");
+
+        db.ref("status").on("value", snap => {
+            const s = snap.val();
+            if (s === "active") {
+                // 出題開始時のみボタンを有効化
+                btn.style.display = "block";
+                btn.disabled = false;
+                btn.classList.add("active");
+                btn.innerText = "PUSH!";
+                inputArea.style.display = "none";
+                timerEl.style.display = "none";
+                msg.innerText = "読み上げ中：押せます！";
+                msg.style.color = "#e74c3c";
+            } else if (s === "pushed") {
+                btn.disabled = true;
+                btn.classList.remove("active");
+                db.ref("winner").once("value", ws => {
+                    const winName = ws.val();
+                    if (winName === nameInput.value) {
+                        btn.style.display = "none";
+                        inputArea.style.display = "block";
+                        timerEl.style.display = "block";
+                        msg.innerText = "あなたの番です！";
+                        document.getElementById("playerAnswerField").focus();
+                    } else {
+                        btn.innerText = "WAIT";
+                        msg.innerText = winName + "さんが回答中...";
+                    }
+                });
+            } else {
+                // 待機中（idleなど）はボタンをグレーアウトして無効化
+                btn.style.display = "block";
+                btn.disabled = true;
+                btn.classList.remove("active");
+                btn.innerText = "待機中";
+                inputArea.style.display = "none";
+                timerEl.style.display = "none";
+                msg.innerText = "出題をお待ちください...";
+                msg.style.color = "#333";
+            }
+        });
+
+        db.ref("countdown").on("value", snap => { if (timerEl) timerEl.innerText = "残り " + snap.val() + " 秒"; });
+        db.ref("feedback").on("value", snap => { if (snap.val()) msg.innerText = snap.val(); });
+    }
+
+    // --- 以下、補助ロジック（カンペ、ジャンル、ランダム等） ---
+    function applyQuiz(quizObj, isBack = false) {
+        if (isRunning) stopQuiz();
+        if (!isBack && currentQuiz.q) historyStack.push({...currentQuiz});
+        currentQuiz = quizObj; usedQuizzes.add(currentQuiz.q);
+        revealedIndexes = [];
+        db.ref().update({ status: "idle", winner: "", submit: null, feedback: "", countdown: 10 });
+        document.getElementById("adminAnswer").innerText = currentQuiz.a;
+        document.getElementById("adminFullText").innerText = currentQuiz.q;
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("backBtn").disabled = historyStack.length === 0;
+        if (subWindow && !subWindow.closed) subWindow.resetForNext();
         syncDisplay();
+    }
+
+    function syncDisplay() {
+        const html = Array.from(currentQuiz.q).map((c, i) => 
+            revealedIndexes.includes(i) ? `<span>${c}</span>` : `<span class="hidden">${c}</span>`
+        ).join("");
+        document.getElementById("display").innerHTML = html;
+        if (subWindow && !subWindow.closed) subWindow.document.getElementById("text").innerHTML = html;
+    }
+
+    function pushButton() {
+        const name = document.getElementById("playerName").value || "名無し";
+        db.ref("status").transaction(curr => { if (curr === "active") { db.ref("winner").set(name); return "pushed"; } });
     }
 
     function changeGenre(g) {
@@ -190,45 +255,13 @@
             </div>`).join("");
     }
 
-    function applyQuiz(quizObj, isBack = false) {
-        if (isRunning) stopQuiz();
-        clearInterval(limitTimer);
-        if (!isBack && currentQuiz.q) historyStack.push({...currentQuiz});
-        currentQuiz = quizObj; usedQuizzes.add(currentQuiz.q);
-        revealedIndexes = [];
-        db.ref().update({ status: "idle", winner: "", submit: null, feedback: "", countdown: 10 });
-        document.getElementById("winner-display").style.display = "none";
-        document.getElementById("display").innerHTML = "";
-        document.getElementById("startBtn").disabled = false;
-        document.getElementById("backBtn").disabled = historyStack.length === 0;
-        if (subWindow && !subWindow.closed) subWindow.resetForNext();
-        syncDisplay();
-        refreshCandidateList();
+    function setNextRandom() {
+        let pool = currentGenre === 'all' ? Object.values(masterData).flat() : masterData[currentGenre];
+        let available = pool.filter(item => !usedQuizzes.has(item.q));
+        if (available.length > 0) applyQuiz(available[Math.floor(Math.random() * available.length)]);
     }
 
-    function startQuiz() {
-        if (isRunning || !currentQuiz.q) return;
-        isRunning = true;
-        db.ref("status").set("active");
-        document.getElementById("startBtn").disabled = true; 
-        document.getElementById("stopBtn").disabled = false;
-        timer = setInterval(() => {
-            if (revealedIndexes.length < currentQuiz.q.length) {
-                let next = 0; while(revealedIndexes.includes(next)) next++;
-                revealedIndexes.push(next); syncDisplay();
-            } else { stopQuiz(); }
-        }, intervalTime);
-    }
-
-    function stopQuiz() { isRunning = false; clearInterval(timer); document.getElementById("startBtn").disabled = false; document.getElementById("stopBtn").disabled = true; }
-
-    function syncDisplay() {
-        const html = Array.from(currentQuiz.q).map((c, i) => 
-            revealedIndexes.includes(i) ? `<span>${c}</span>` : `<span class="hidden">${c}</span>`
-        ).join("");
-        document.getElementById("display").innerHTML = html;
-        if (subWindow && !subWindow.closed) subWindow.document.getElementById("text").innerHTML = html;
-    }
+    function goBack() { if (historyStack.length > 0) applyQuiz(historyStack.pop(), true); }
 
     function openSubWindow() {
         subWindow = window.open("", "QuizSub", "width=1200,height=800");
@@ -243,19 +276,16 @@
                     else { el.style.display = "none"; }
                 };
             <\/script></body></html>`);
-        // タイマー同期処理
         db.ref("countdown").on("value", snap => {
-            const countVal = snap.val();
-            db.ref("status").once("value", sSnap => {
-                if (subWindow && !subWindow.closed && subWindow.updateTimer) subWindow.updateTimer(countVal, sSnap.val());
-            });
+            if (subWindow && !subWindow.closed && subWindow.updateTimer) {
+                db.ref("status").once("value", sSnap => subWindow.updateTimer(snap.val(), sSnap.val()));
+            }
         });
         subWindow.showResult = (t, c) => { const r = subWindow.document.getElementById("res"); r.innerText = t; r.style.color = c; };
         subWindow.hideJudge = () => { subWindow.document.getElementById("res").innerText = ""; };
         subWindow.resetForNext = () => { subWindow.document.getElementById("text").innerText = ""; subWindow.document.getElementById("res").innerText = ""; };
     }
 
-    // --- その他、判定・プレイヤー設定等は前バージョンを継承 ---
     function startLimitCounter() {
         let count = 10;
         db.ref("countdown").set(count);
@@ -265,6 +295,7 @@
             if (count <= -1) { clearInterval(limitTimer); processAutoJudge({ text: "---時間切れ---" }); }
         }, 1000);
     }
+
     function processAutoJudge(answerData) {
         clearInterval(limitTimer);
         const pAns = answerData.text.trim();
@@ -278,43 +309,33 @@
             if (subWindow) subWindow.showResult(msg, "#e74c3c");
             setTimeout(() => {
                 if (subWindow) subWindow.hideJudge();
-                db.ref().update({ status: "active", winner: "", feedback: "", countdown: 10 });
-                startQuiz();
+                db.ref().update({ status: "idle", winner: "", feedback: "", countdown: 10 });
             }, 2000);
         }
         db.ref("submit").set(null);
     }
-    function setupPlayer() {
-        const nameInput = document.getElementById("playerName");
-        const timerEl = document.getElementById("timer-display");
-        const btn = document.getElementById("remote-button");
-        const inputArea = document.getElementById("answer-input-area");
-        const msg = document.getElementById("status-msg");
-        db.ref("status").on("value", snap => {
-            const s = snap.val();
-            if (s === "active") { btn.style.display = "block"; inputArea.style.display = "none"; timerEl.style.display = "none"; msg.innerText = "早押し！"; }
-            else if (s === "pushed") {
-                db.ref("winner").once("value", ws => {
-                    if (ws.val() === nameInput.value) { btn.style.display = "none"; inputArea.style.display = "block"; timerEl.style.display = "block"; document.getElementById("playerAnswerField").focus(); }
-                    else { btn.style.display = "none"; msg.innerText = ws.val() + "さんが回答中..."; }
-                });
-            } else { btn.style.display = "none"; inputArea.style.display = "none"; timerEl.style.display = "none"; msg.innerText = "待機中..."; }
-        });
-        db.ref("countdown").on("value", snap => { if (timerEl) timerEl.innerText = "残り " + snap.val() + " 秒"; });
-        db.ref("feedback").on("value", snap => { if (snap.val()) msg.innerText = snap.val(); });
+    
+    function revealByType(type) {
+        if (!currentQuiz.q) return;
+        const text = currentQuiz.q;
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            let reveal = (type === 'all');
+            if (type === 'symbol' && (char.match(/[^\w\s\u3040-\u30ff\u4e00-\u9faf]/) || "！？〜".includes(char))) reveal = true;
+            if (type === 'hiragana' && char.match(/[\u3040-\u309f]/)) reveal = true;
+            if (type === 'katakana' && char.match(/[\u30a0-\u30ff]/)) reveal = true;
+            if (type === 'kanji' && char.match(/[\u4e00-\u9faf]/)) reveal = true;
+            if (reveal && !revealedIndexes.includes(i)) revealedIndexes.push(i);
+        }
+        syncDisplay();
     }
-    function pushButton() { const name = document.getElementById("playerName").value || "名無し"; db.ref("status").transaction(curr => { if (curr === "active") { db.ref("winner").set(name); return "pushed"; } }); }
-    function submitAnswer() { const ans = document.getElementById("playerAnswerField").value; const name = document.getElementById("playerName").value || "名無し"; if (!ans) return; db.ref("submit").set({ user: name, text: ans }); document.getElementById("playerAnswerField").value = ""; }
-    function setNextRandom() {
-        let pool = currentGenre === 'all' ? Object.values(masterData).flat() : masterData[currentGenre];
-        let available = pool.filter(item => !usedQuizzes.has(item.q));
-        if (available.length > 0) applyQuiz(available[Math.floor(Math.random() * available.length)]);
-    }
-    function goBack() { if (historyStack.length > 0) applyQuiz(historyStack.pop(), true); }
-    function addCustomQuiz() {
-        const val = document.getElementById("customInput").value;
-        const parts = val.split(",");
-        if (parts.length >= 2) { masterData.custom.push({ q: parts[0], a: parts[1] }); document.getElementById("customInput").value = ""; changeGenre('custom'); }
+
+    function submitAnswer() {
+        const ans = document.getElementById("playerAnswerField").value;
+        const name = document.getElementById("playerName").value || "名無し";
+        if (!ans) return;
+        db.ref("submit").set({ user: name, text: ans });
+        document.getElementById("playerAnswerField").value = "";
     }
 </script>
 </body>
