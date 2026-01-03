@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Final Penalty Logic</title>
+    <title>QuizConsole Pro - Final Logic & Expanded Symbols</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -171,7 +171,6 @@
         applyQuiz(pool[Math.floor(Math.random() * pool.length)]);
     }
 
-    // 休みを1つ消費する
     function reduceWaits() { 
         db.ref("waits").once("value", snap => { 
             const w = snap.val() || {}; 
@@ -183,7 +182,7 @@
         stopQuiz(); currentQuiz = obj; revealedIndexes = [];
         usedQuizzes.add(obj.q);
         
-        // 【核心ロジック】新しい問題がセットされるたびにカウントを1減らす
+        // 新しい問題セット時に休みカウントを1減らす
         reduceWaits();
 
         db.ref().update({ status: "idle", winner: "" });
@@ -219,7 +218,7 @@
         if(!currentWinner) return;
         const pPts = parseInt(document.getElementById("plusPts").value);
         const mPts = parseInt(document.getElementById("minusPts").value);
-        const waitCount = parseInt(document.getElementById("missWait").value); // 推奨値: 2
+        const waitCount = parseInt(document.getElementById("missWait").value);
 
         db.ref("scores/" + currentWinner).transaction(s => (s || 0) + (isCorrect ? pPts : mPts));
         
@@ -236,14 +235,22 @@
                 subWindow.showFlash("❌","#e74c3c",'wrong');
                 subWindow.resetForNext(); 
             }
-            // 誤答時：設定されたカウントを付与（2をセットすれば、次をセットしたときに1になり、その次をセットしたときに0になる）
+            // 誤答時にカウント付与
             db.ref("waits/"+currentWinner).set(waitCount);
             db.ref().update({winner:"", status:"active"});
         }
     }
 
     function openByType(t) {
-        const m = { kanji:/[\u4E00-\u9FFF]/, hira:/[\u3040-\u309F]/, kana:/[\u30A0-\u30FF]/, num:/[0-9０-９]/, alp:/[a-z]/i, sym:/[！？、。]/ };
+        const m = { 
+            kanji:/[\u4E00-\u9FFF]/, 
+            hira:/[\u3040-\u309F]/, 
+            kana:/[\u30A0-\u30FF]/, 
+            num:/[0-9０-９]/, 
+            alp:/[a-z]/i, 
+            // 記号に括弧類・特殊文字（ローマ数字等）を追加
+            sym:/[！？、。：；／＿－＝＋＊＆％＄＃＠！”＃＄％＆’（）＊＋，－．／：；＜＝＞？＠［＼］＾＿｀｛｜｝～「」『』【】（）ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]/ 
+        };
         Array.from(currentQuiz.q).forEach((c,i) => { if(m[t] && m[t].test(c)) if(!revealedIndexes.includes(i)) revealedIndexes.push(i); });
         syncDisplay(); db.ref("status").set("active");
     }
@@ -304,7 +311,6 @@
                 document.getElementById("displayPlayerName").innerText = n; 
                 document.getElementById("wait-status").innerText = w > 0 ? "⚠️ あと " + w + " カウント休み" : ""; 
             }
-            // 自分が解答中ではなく、かつ休みカウントが0なら活性化
             if (d.status === "active" && n && w === 0 && d.winner !== n) { 
                 btn.style.display="block"; btn.disabled=false; btn.classList.add("active"); 
             } else if (d.status === "pushed" && d.winner === n) { 
@@ -318,4 +324,3 @@
 </script>
 </body>
 </html>
-
