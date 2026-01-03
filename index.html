@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Final Debugged v2</title>
+    <title>QuizConsole Pro - Final Fixed</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -130,29 +130,44 @@
     let usedQuizzes = new Set(), currentGenre = 'all';
     let currentQuiz = { q: "", a: "" }, revealedIndexes = [];
     let isRunning = false, timer = null, subWindow = null, currentWinner = "", intervalTime = 150;
+    let lastStatus = "idle"; // 【追加】ステータス変更監視用
 
     async function initRole(role) {
         document.getElementById("role-ui").style.display = "none";
         document.getElementById(role + "-ui").style.display = (role === 'admin' ? 'flex' : 'block');
         if (role === 'admin') {
             for(let k in URLS) {
-                const text = await fetch(URLS[k]).then(r => r.text());
-                masterData[k] = parseCSV(text);
-                masterData.all = masterData.all.concat(masterData[k]);
+                try {
+                    const text = await fetch(URLS[k]).then(r => r.text());
+                    masterData[k] = parseCSV(text);
+                    masterData.all = masterData.all.concat(masterData[k]);
+                } catch(e) { console.error(k + " load error", e); }
             }
             masterData.all.sort(() => Math.random() - 0.5);
-            // 解答者決定と同時に読み上げを止める
+
             db.ref().on("value", snap => {
                 const data = snap.val() || {};
-                currentWinner = data.winner;
+                currentWinner = data.winner || "";
                 document.getElementById("activePlayer").innerText = currentWinner || "---";
-                if(data.status === "pushed") stopQuiz(); 
-                if(subWindow) subWindow.showWinner(currentWinner);
+                
+                // 【重要：修正】pushedになった瞬間だけBuzzerを発動
+                if(data.status === "pushed" && lastStatus !== "pushed") {
+                    stopQuiz();
+                    if(subWindow && !subWindow.closed) subWindow.showWinner(currentWinner);
+                }
+                
+                // winnerが消えたら視聴者画面の解答中表示を消す
+                if(!currentWinner && subWindow && !subWindow.closed) {
+                    subWindow.document.getElementById('winner-display').style.display = 'none';
+                }
+
+                lastStatus = data.status;
             });
+
             db.ref("scores").on("value", snap => {
                 const s = snap.val() || {};
                 updateAdminScoreUI(s);
-                if(subWindow) subWindow.updateRanking(s);
+                if(subWindow && !subWindow.closed) subWindow.updateRanking(s);
             });
             changeGenre('all');
         } else { setupPlayer(); }
@@ -175,9 +190,10 @@
             <div class="score-edit-row"><span>${name}</span><input type="number" class="score-input" value="${val}" onchange="updateScoreDirectly('${name}', this.value)"></div>
         `).join("");
     }
-    function updateScoreDirectly(name, newVal) { db.ref("scores/" + name).set(parseInt(newVal)); }
+    function updateScoreDirectly(name, newVal) { db.ref("scores/" + name).set(parseInt(newVal) || 0); }
 
     function openByType(type) {
+        if(!currentQuiz.q) return;
         const regexMap = { kanji: /[\u4E00-\u9FFF]/, hira: /[\u3040-\u309F]/, kana: /[\u30A0-\u30FF]/, num: /[0-9０-９]/, alp: /[a-zA-Z]/, sym: /[、。！？\s\?？!！]/ };
         Array.from(currentQuiz.q).forEach((char, i) => { if (regexMap[type] && regexMap[type].test(char)) if (!revealedIndexes.includes(i)) revealedIndexes.push(i); });
         syncDisplay();
@@ -192,24 +208,25 @@
         document.getElementById("adminFullText").innerText = currentQuiz.q;
         document.getElementById("showAnsBtn").style.display = "none";
         renderList();
-        if (subWindow) subWindow.resetForNext();
+        if (subWindow && !subWindow.closed) subWindow.resetForNext();
         syncDisplay();
     }
 
     function syncDisplay() {
         const html = Array.from(currentQuiz.q).map((c, i) => revealedIndexes.includes(i) ? `<span>${c}</span>` : `<span class="hidden">${c}</span>`).join("");
         document.getElementById("display").innerHTML = html;
-        if (subWindow) subWindow.document.getElementById("text").innerHTML = html;
+        if (subWindow && !subWindow.closed) subWindow.document.getElementById("text").innerHTML = html;
     }
 
     function startQuiz() {
         if (isRunning || !currentQuiz.q) return;
-        isRunning = true; db.ref("status").set("active");
+        isRunning = true;
+        db.ref("status").set("active");
         timer = setInterval(() => {
             if (revealedIndexes.length < currentQuiz.q.length) {
                 let next = 0; while(revealedIndexes.includes(next)) next++;
                 revealedIndexes.push(next); syncDisplay();
-            } else stopQuiz();
+            } else { stopQuiz(); }
         }, intervalTime);
     }
 
@@ -218,23 +235,23 @@
         const pts = parseInt(document.getElementById(isCorrect ? "plusPts" : "minusPts").value) || 0;
         db.ref("scores/" + currentWinner).transaction(s => (s || 0) + pts);
         if (isCorrect) {
-            if (subWindow) subWindow.showResultOnlyMsg(currentWinner + " 正解！", "#2ecc71", 'correct');
+            if (subWindow && !subWindow.closed) subWindow.showResultOnlyMsg(currentWinner + " 正解！", "#2ecc71", 'correct');
             document.getElementById("showAnsBtn").style.display = "block";
             stopQuiz();
         } else {
-            if (subWindow) subWindow.showFlash("❌", "#e74c3c", 'wrong');
-            db.ref().update({ winner: "", status: "idle" });
+            if (subWindow && !subWindow.closed) subWindow.showFlash("❌", "#e74c3c", 'wrong');
+            db.ref().update({ winner: "", status: "idle" }); 
         }
     }
 
     function resetAllScores() { if(confirm("全点数をリセットしますか？")) db.ref("scores").remove(); }
-    function revealAnswerToSub() { if (subWindow) subWindow.revealAnswer(currentQuiz.a); document.getElementById("showAnsBtn").style.display = "none"; }
-    function stopQuiz() { isRunning = false; clearInterval(timer); }
+    function revealAnswerToSub() { if (subWindow && !subWindow.closed) subWindow.revealAnswer(currentQuiz.a); document.getElementById("showAnsBtn").style.display = "none"; }
+    function stopQuiz() { isRunning = false; clearInterval(timer); timer = null; }
     function resumeQuiz() { db.ref().update({ status: "active", winner: "" }); startQuiz(); }
     function updateSpeed(v) { intervalTime = parseInt(v); }
     function addCustomQuiz() {
         const q = document.getElementById("customQ").value.trim(), a = document.getElementById("customA").value.trim();
-        if(q && a) { const newItem = {q, a}; masterData.custom.unshift(newItem); masterData.all.unshift(newItem); applyQuiz(newItem); }
+        if(q && a) { const newItem = {q, a}; masterData.custom.unshift(newItem); applyQuiz(newItem); }
     }
     function reloadCurrentQuiz() { if(currentQuiz.q) applyQuiz(currentQuiz); }
 
@@ -251,9 +268,9 @@
             .rank-item{font-size:1.8rem;margin-bottom:12px;border-bottom:1px solid #333;padding-bottom:5px;display:flex;justify-content:space-between;}
             .score-val{color:#ff4757;font-weight:bold;}
         </style></head><body>
-            <audio id="snd-buzzer" src="buzzer.mp3"></audio>
-            <audio id="snd-correct" src="correct.mp3"></audio>
-            <audio id="snd-wrong" src="wrong.mp3"></audio>
+            <audio id="snd-buzzer" src="https://raw.githubusercontent.com/modern-quiz/assets/main/buzzer.mp3"></audio>
+            <audio id="snd-correct" src="https://raw.githubusercontent.com/modern-quiz/assets/main/correct.mp3"></audio>
+            <audio id="snd-wrong" src="https://raw.githubusercontent.com/modern-quiz/assets/main/wrong.mp3"></audio>
             <div id="winner-display" style="display:none;"></div>
             <div id="main"><div id="text"></div><div id="res-msg" style="font-size:6rem; font-weight:bold; text-align:center;"></div><div id="res-ans" class="ans-box"></div></div>
             <div id="ranking"><h2>RANKING</h2><div id="rank-list"></div></div>
@@ -261,9 +278,15 @@
                 const play=(id)=>{const a=document.getElementById('snd-'+id);if(a){a.currentTime=0;a.play().catch(e=>{});}};
                 window.updateRanking=(scores)=>{
                     const sorted = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
-                    document.getElementById('rank-list').innerHTML = sorted.map(([n,s])=>'<div class="rank-item"><span>'+n+'</span><span class="score-val">'+s+'pt</span></div>').join('');
+                    document.getElementById('rank-list').innerHTML = sorted.map(([n,s])=>'<div class="rank-item"><span>'+n+'</span><span class="score-val">'+Number(s)+'pt</span></div>').join('');
                 };
-                window.showWinner=(n)=>{if(n){play('buzzer');document.getElementById('winner-display').innerHTML='<div class="banner">'+n+' 解答中！</div>';document.getElementById('winner-display').style.display='block';}else{document.getElementById('winner-display').style.display='none';}};
+                window.showWinner=(n)=>{
+                    if(n){
+                        play('buzzer');
+                        document.getElementById('winner-display').innerHTML='<div class="banner">'+n+' 解答中！</div>';
+                        document.getElementById('winner-display').style.display='block';
+                    }
+                };
                 window.showResultOnlyMsg=(m,c,snd)=>{play(snd);document.getElementById('winner-display').style.display='none';document.getElementById('text').style.display='none';document.getElementById('res-msg').innerText=m;document.getElementById('res-msg').style.color=c;};
                 window.revealAnswer=(a)=>{document.getElementById('res-ans').innerText=a;document.getElementById('res-ans').style.display='block';};
                 window.showFlash=(m,c,snd)=>{play(snd);const div=document.createElement("div");div.innerText=m;div.style.cssText="position:fixed;top:30%;left:50%;transform:translateX(-50%);font-size:22rem;color:"+c+";font-weight:bold;z-index:100;";document.body.appendChild(div);setTimeout(()=>div.remove(),1500);};
@@ -275,7 +298,11 @@
         const btn = document.getElementById("remote-button"), ni = document.getElementById("playerName");
         db.ref().on("value", snap => {
             const d = snap.val() || {}, n = ni.value.trim();
-            if(n) { document.getElementById("p-score").innerText = (d.scores && d.scores[n]) || 0; document.getElementById("displayPlayerName").innerText = n; }
+            if(n) { 
+                const s = (d.scores && d.scores[n]) || 0;
+                document.getElementById("p-score").innerText = s; 
+                document.getElementById("displayPlayerName").innerText = n; 
+            }
             if (d.status === "active" && n!=="") { btn.style.display="block"; btn.disabled=false; btn.classList.add("active"); }
             else if (d.status === "pushed" && d.winner === n) { btn.style.display="none"; }
             else { btn.disabled=true; btn.classList.remove("active"); btn.style.display="block"; }
