@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Sports Fixed v3</title>
+    <title>QuizConsole Pro - Complete Final</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -12,7 +12,6 @@
         .container { background: var(--admin-card); padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); flex: 1; }
         .sidebar { width: 420px; background: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); max-height: 95vh; overflow-y: auto; }
         
-        /* 問題表示エリア */
         #display { font-size: 1.8rem; line-height: 1.6; min-height: 5em; padding: 25px; background: var(--dark); color: #fff; border-radius: 8px; display: flex; flex-wrap: wrap; margin-bottom: 15px; align-content: flex-start; }
         #display span { margin-right: 2px; border-bottom: 2px solid #555; min-width: 0.8em; text-align: center; }
         #display span.hidden { visibility: hidden; border-bottom-color: #777; }
@@ -29,7 +28,8 @@
         .quiz-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 0.85rem; }
         .quiz-item.used { opacity: 0.4; background: #f8f8f8; }
         
-        #remote-button { width: 280px; height: 280px; border-radius: 50%; border: 15px solid #bdc3c7; background: #ecf0f1; font-size: 3.5rem; margin: 20px auto; display: none; cursor: pointer; transition: transform 0.1s; }
+        .score-input { width: 50px; text-align: center; font-weight: bold; }
+        #remote-button { width: 280px; height: 280px; border-radius: 50%; border: 15px solid #bdc3c7; background: #ecf0f1; font-size: 3.5rem; margin: 20px auto; display: none; cursor: pointer; transition: 0.1s; }
         #remote-button.active { border-color: #e74c3c; background: #ff4757; color: white; box-shadow: 0 10px 0 #c0392b; }
     </style>
 </head>
@@ -37,6 +37,7 @@
 
 <div id="role-ui" class="container" style="max-width: 400px; text-align: center; margin: 100px auto;">
     <h2>QuizConsole Pro</h2>
+    <p>役割を選択してください</p>
     <button style="width:100%; padding:20px; margin-bottom:15px; cursor:pointer;" onclick="initRole('admin')">💻 管理者コンソール</button>
     <button style="width:100%; padding:20px; background:#9b59b6; color:white; border:none; border-radius:8px; cursor:pointer;" onclick="initRole('player')">📱 回答者端末</button>
 </div>
@@ -44,7 +45,7 @@
 <div id="admin-ui" class="main-layout" style="display:none;">
     <div class="container">
         <div style="display:flex; gap:10px; margin-bottom:15px;">
-            <button style="background:#8e44ad; flex:2; height:50px; color:white; border:none; border-radius:8px; cursor:pointer;" onclick="openSubWindow()">💻 視聴者画面を起動</button>
+            <button style="background:#8e44ad; flex:2; height:50px; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="openSubWindow()">💻 視聴者画面を起動</button>
             <button style="background:var(--test); flex:1; color:white; border:none; border-radius:8px; cursor:pointer;" onclick="reloadCurrentQuiz()">🔄 再セット</button>
             <button style="background:var(--danger); flex:1; color:white; border:none; border-radius:8px; cursor:pointer;" onclick="resetAllScores()">🚮 リセット</button>
         </div>
@@ -57,6 +58,12 @@
             </div>
             <button style="width:100%; height:45px; background:#95a5a6; color:white; border:none; border-radius:8px; cursor:pointer; margin-bottom:8px;" onclick="resumeQuiz()">読上再開 / スルー</button>
             <button style="width:100%; height:45px; background:var(--warn); color:white; border:none; border-radius:8px; cursor:pointer;" onclick="revealAnswerToSub()">📢 答えを公開</button>
+            
+            <div style="margin-top:10px; font-size:0.8rem; display:flex; justify-content:center; gap:10px;">
+                <label>正解:+<input type="number" id="plusPts" value="1" style="width:35px;"></label>
+                <label>誤答:<input type="number" id="minusPts" value="-1" style="width:35px;"></label>
+                <label>休み:<input type="number" id="missWait" value="1" style="width:35px;">回</label>
+            </div>
         </div>
 
         <div class="panel">
@@ -85,6 +92,7 @@
 
     <div class="sidebar">
         <div id="admin-score-list" class="panel" style="background:#e3f2fd;">ランキング読込中...</div>
+        
         <div id="genre-container" style="display:flex; flex-wrap:wrap; gap:2px; margin-bottom:10px;">
             <button class="btn-genre" id="btn-all" onclick="changeGenre('all')">全</button>
             <button class="btn-genre" id="btn-anime" onclick="changeGenre('anime')">アニ</button>
@@ -93,8 +101,16 @@
             <button class="btn-genre" id="btn-sport" onclick="changeGenre('sport')">スポ</button>
             <button class="btn-genre" id="btn-custom" onclick="changeGenre('custom')">★</button>
         </div>
+
         <input type="text" id="quizSearch" class="search-box" placeholder="🔍 キーワード検索..." oninput="renderList()">
         <div id="quizList"></div>
+
+        <div class="panel" style="background:#eee; margin-top:10px;">
+            <small>手動問題追加</small>
+            <input type="text" id="customQ" placeholder="問題文" style="width:90%; margin:2px 0;">
+            <input type="text" id="customA" placeholder="答え" style="width:90%;">
+            <button onclick="addCustomQuiz()" style="width:100%; margin-top:5px; cursor:pointer;">追加してセット</button>
+        </div>
     </div>
 </div>
 
@@ -113,12 +129,11 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // URLを再確認・スポーツのみ修正（gidパラメータ等が必要な場合に対応しやすい形式）
     const URLS = {
         anime: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTBRf9k4zS7Ht5s7GKejqT2d-cyWbDHd19DwTPmAzoHe40d9nV1cVu-RH565sIq9GbYmEKkzhpBytp/pub?output=csv",
         social: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXVYOqHu_0VRIkiVK0RQO-ZWPZ6pHGqIw5VxBWdOlg3-HbP3q26gM0fVxTndREhjqbaxFzcjeuoMcE/pub?output=csv",
         life: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSTr7JL0lBCMLRBFi-CraPlJxzp4xrGD8RSnc8MSuoV3ORISo0iCFWMmI_FCtDlgkxwPqmv_TwAvufn/pub?output=csv",
-        sport: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJYls3O8_98SKNWqx34c0V5HLIaXdxxA8v4E3c1iwrTFZBL1TSxzeem9AbKZKYfMkQEcu7bECcsgVo/pub?output=csv"
+        sport: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJYls3O8_98SKNWqx34c0V5HLIaXdxxA8v4E3c1iwrTFZBL1TSzeem9AbKZKYfMkQEcu7bECcsgVo/pub?output=csv"
     };
 
     let masterData = { anime: [], social: [], life: [], sport: [], custom: [], all: [] };
@@ -129,156 +144,90 @@
     async function initRole(role) {
         document.getElementById("role-ui").style.display = "none";
         document.getElementById(role + "-ui").style.display = (role === 'admin' ? 'flex' : 'block');
-        
         if (role === 'admin') {
-            document.getElementById("quizList").innerHTML = "<div style='text-align:center; padding:20px;'>📥 データを取得中...</div>";
-            
-            // 全ての取得が完了してから結合
-            const fetchPromises = Object.entries(URLS).map(async ([key, url]) => {
+            const promises = Object.entries(URLS).map(async ([key, url]) => {
                 try {
-                    const res = await fetch(url + "&cache=" + Date.now()); // キャッシュ対策
-                    if (!res.ok) throw new Error("HTTP error " + res.status);
+                    const res = await fetch(url + "?cache=" + Date.now());
                     const text = await res.text();
                     const data = parseCSV(text);
                     masterData[key] = data;
                     return data;
-                } catch (e) {
-                    console.error("Load failed: " + key, e);
-                    return [];
+                } catch (e) { return []; }
+            });
+            const results = await Promise.all(promises);
+            masterData.all = results.flat();
+            changeGenre('all');
+
+            db.ref().on("value", snap => {
+                const data = snap.val() || {};
+                currentWinner = data.winner || "";
+                document.getElementById("activePlayer").innerText = currentWinner || "---";
+                if(data.status === "pushed" && lastStatus !== "pushed") {
+                    stopQuiz();
+                    if(subWindow && !subWindow.closed) subWindow.showWinner(currentWinner);
                 }
+                if(data.status === "idle" && lastStatus === "active") reduceWaits();
+                lastStatus = data.status;
             });
 
-            const results = await Promise.all(fetchPromises);
-            masterData.all = results.flat();
-            
-            if (masterData.sport.length === 0) {
-                alert("⚠️ スポーツの読み込みに失敗しました。URLが公開されているか確認してください。");
-            }
-
-            changeGenre('all');
-            setupAdminFirebase();
+            db.ref("scores").on("value", snap => {
+                const s = snap.val() || {};
+                const list = document.getElementById("admin-score-list");
+                const sorted = Object.entries(s).sort((a,b) => b[1] - a[1]);
+                list.innerHTML = "<strong>🏆 スコア編集</strong>" + sorted.map(([n,v]) => `<div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-top:2px;"><span>${n}</span><input type="number" class="score-input" value="${v}" onchange="db.ref('scores/${n}').set(parseInt(this.value))"></div>`).join("");
+                if(subWindow && !subWindow.closed) subWindow.updateRanking(s);
+            });
         } else { setupPlayer(); }
     }
 
-    function parseCSV(t) { 
-        return t.split(/\r?\n/).slice(1)
-                .filter(r => r.trim() !== "" && r.includes(","))
-                .map(row => { 
-                    const p = row.split(","); 
-                    return { q: p[0].trim(), a: p[1] ? p[1].trim() : "" }; 
-                }); 
-    }
-
-    function changeGenre(g) { 
-        currentGenre = g; 
-        document.querySelectorAll('.btn-genre').forEach(b => b.classList.remove('active'));
-        const activeBtn = document.getElementById('btn-' + g);
-        if(activeBtn) activeBtn.classList.add('active');
-        if(masterData[currentGenre]) masterData[currentGenre].sort(() => Math.random() - 0.5); 
-        renderList(); 
-    }
-
+    function parseCSV(t) { return t.split(/\r?\n/).slice(1).filter(r => r.trim() !== "" && r.includes(",")).map(row => { const p = row.split(","); return { q: p[0].trim(), a: p[1] ? p[1].trim() : "" }; }); }
+    function changeGenre(g) { currentGenre = g; document.querySelectorAll('.btn-genre').forEach(b => b.classList.remove('active')); const activeBtn = document.getElementById('btn-' + g); if(activeBtn) activeBtn.classList.add('active'); if(masterData[currentGenre]) masterData[currentGenre].sort(() => Math.random() - 0.5); renderList(); }
     function renderList() {
         const keyword = document.getElementById("quizSearch").value.toLowerCase();
         let pool = masterData[currentGenre] || [];
         if(keyword) pool = pool.filter(i => i.q.toLowerCase().includes(keyword) || i.a.toLowerCase().includes(keyword));
-        
-        const html = pool.slice(0, 100).map(item => `
-            <div class="quiz-item ${usedQuizzes.has(item.q) ? 'used' : ''}" onclick="applyQuiz({q:'${item.q.replace(/'/g,"\\'")}', a:'${item.a.replace(/'/g,"\\'")}'})">
-                <strong>答：${item.a}</strong><br><small>${item.q}</small>
-            </div>`).join("");
-        document.getElementById("quizList").innerHTML = html || "<div style='text-align:center; padding:20px; color:#999;'>データがありません</div>";
+        document.getElementById("quizList").innerHTML = pool.slice(0, 100).map(item => `<div class="quiz-item ${usedQuizzes.has(item.q) ? 'used' : ''}" onclick="applyQuiz({q:'${item.q.replace(/'/g,"\\'")}', a:'${item.a.replace(/'/g,"\\'")}'})"><strong>答：${item.a}</strong><br><small>${item.q}</small></div>`).join("");
     }
-
-    function applyQuiz(quizObj) {
-        stopQuiz(); currentQuiz = quizObj; revealedIndexes = [];
-        usedQuizzes.add(quizObj.q);
-        db.ref().update({ status: "idle", winner: "" });
-        document.getElementById("adminAnswer").innerText = currentQuiz.a;
-        document.getElementById("adminFullText").innerText = currentQuiz.q;
-        renderList();
-        if (subWindow && !subWindow.closed) subWindow.resetForNext();
-        syncDisplay();
-    }
-
-    function syncDisplay() {
-        const html = Array.from(currentQuiz.q).map((c, i) => revealedIndexes.includes(i) ? `<span>${c}</span>` : `<span class="hidden">${c}</span>`).join("");
-        document.getElementById("display").innerHTML = html;
-        if (subWindow && !subWindow.closed) subWindow.document.getElementById("text").innerHTML = html;
-    }
-
+    function applyQuiz(quizObj) { stopQuiz(); currentQuiz = quizObj; revealedIndexes = []; usedQuizzes.add(quizObj.q); db.ref().update({ status: "idle", winner: "" }); document.getElementById("adminAnswer").innerText = currentQuiz.a; document.getElementById("adminFullText").innerText = currentQuiz.q; renderList(); if (subWindow && !subWindow.closed) subWindow.resetForNext(); syncDisplay(); }
+    function syncDisplay() { const html = Array.from(currentQuiz.q).map((c, i) => revealedIndexes.includes(i) ? `<span>${c}</span>` : `<span class="hidden">${c}</span>`).join(""); document.getElementById("display").innerHTML = html; if (subWindow && !subWindow.closed) subWindow.document.getElementById("text").innerHTML = html; }
+    
     function openByType(type) {
         if(!currentQuiz.q) return;
-        const maps = { 
-            kanji:/[\u4E00-\u9FFF]/, hira:/[\u3040-\u309F]/, kana:/[\u30A0-\u30FF]/, 
-            num:/[0-9０-９]/, alp:/[a-zA-Z]/, 
-            sym:/[、。！？\s\?？!！\(\)（）「」『』【】\[\]\{\}：：；；,.．，・]/ 
-        };
+        const maps = { kanji:/[\u4E00-\u9FFF]/, hira:/[\u3040-\u309F]/, kana:/[\u30A0-\u30FF]/, num:/[0-9０-９]/, alp:/[a-zA-Z]/, sym:/[、。！？\s\?？!！\(\)（）「」『』【】\[\]\{\}：：；；,.．，・]/ };
         Array.from(currentQuiz.q).forEach((c, i) => { if(maps[type] && maps[type].test(c)) if(!revealedIndexes.includes(i)) revealedIndexes.push(i); });
-        syncDisplay();
-        db.ref("status").set("active");
+        syncDisplay(); db.ref("status").set("active");
     }
-
     function openAllCharacters() { revealedIndexes = Array.from({length: currentQuiz.q.length}, (_, i) => i); syncDisplay(); db.ref("status").set("active"); }
-    function startQuiz() {
-        if (isRunning || !currentQuiz.q) return;
-        isRunning = true; db.ref("status").set("active");
-        timer = setInterval(() => {
-            if (revealedIndexes.length < currentQuiz.q.length) {
-                let next = 0; while(revealedIndexes.includes(next)) next++;
-                revealedIndexes.push(next); syncDisplay();
-            } else { stopQuiz(); }
-        }, intervalTime);
-    }
-
+    function startQuiz() { if (isRunning || !currentQuiz.q) return; isRunning = true; db.ref("status").set("active"); timer = setInterval(() => { if (revealedIndexes.length < currentQuiz.q.length) { let next = 0; while(revealedIndexes.includes(next)) next++; revealedIndexes.push(next); syncDisplay(); } else { stopQuiz(); } }, intervalTime); }
+    
     function manualJudge(isCorrect) {
         if (!currentWinner) return;
-        db.ref("scores/" + currentWinner).transaction(s => (s || 0) + (isCorrect ? 1 : -1));
+        const pPts = parseInt(document.getElementById("plusPts").value) || 0;
+        const mPts = parseInt(document.getElementById("minusPts").value) || 0;
+        db.ref("scores/" + currentWinner).transaction(s => (s || 0) + (isCorrect ? pPts : mPts));
         if (isCorrect) {
             if (subWindow && !subWindow.closed) subWindow.showResultOnlyMsg(currentWinner + " 正解！", "#2ecc71", 'correct');
-            db.ref("waits/" + currentWinner).set(0); 
-            stopQuiz();
-            db.ref().update({ status: "idle", winner: "" });
+            db.ref("waits/" + currentWinner).set(0); stopQuiz(); db.ref().update({ status: "idle", winner: "" });
         } else {
             if (subWindow && !subWindow.closed) subWindow.showFlash("❌", "#e74c3c", 'wrong');
-            db.ref("waits/" + currentWinner).set(1);
-            db.ref().update({ winner: "", status: "active" });
+            const wVal = parseInt(document.getElementById("missWait").value) || 0;
+            db.ref("waits/" + currentWinner).set(wVal); db.ref().update({ winner: "", status: "active" });
         }
     }
-
+    
     function revealAnswerToSub() { if (subWindow && !subWindow.closed) subWindow.revealAnswer(currentQuiz.a, currentQuiz.q); }
     function stopQuiz() { isRunning = false; clearInterval(timer); timer = null; }
     function resumeQuiz() { db.ref().update({ status: "active", winner: "" }); startQuiz(); }
     function updateSpeed(v) { intervalTime = parseInt(v); }
     function reloadCurrentQuiz() { if(currentQuiz.q) applyQuiz(currentQuiz); }
-    function resetAllScores() { if(confirm("全リセット？")) { db.ref("scores").remove(); db.ref("waits").remove(); } }
-    function setupAdminFirebase() {
-        db.ref().on("value", snap => {
-            const data = snap.val() || {};
-            currentWinner = data.winner || "";
-            document.getElementById("activePlayer").innerText = currentWinner || "---";
-            if(data.status === "pushed" && lastStatus !== "pushed") {
-                stopQuiz();
-                if(subWindow && !subWindow.closed) subWindow.showWinner(currentWinner);
-            }
-            if(data.status === "idle" && lastStatus === "active") reduceWaits();
-            lastStatus = data.status;
-        });
-        db.ref("scores").on("value", snap => {
-            const s = snap.val() || {};
-            const list = document.getElementById("admin-score-list");
-            const sorted = Object.entries(s).sort((a,b) => b[1] - a[1]);
-            list.innerHTML = "<strong>🏆 スコア</strong>" + sorted.map(([n,v]) => `<div style="display:flex;justify-content:space-between;font-size:0.85rem;"><span>${n}</span><span>${v} pt</span></div>`).join("");
-            if(subWindow && !subWindow.closed) subWindow.updateRanking(s);
-        });
-    }
-
+    function resetAllScores() { if(confirm("リセット？")) { db.ref("scores").remove(); db.ref("waits").remove(); } }
+    function addCustomQuiz() { const q = document.getElementById("customQ").value.trim(), a = document.getElementById("customA").value.trim(); if(q && a) { const item = {q, a}; masterData.custom.unshift(item); applyQuiz(item); } }
     function reduceWaits() { db.ref("waits").once("value", snap => { const w = snap.val() || {}; for(let u in w) if(w[u]>0) db.ref("waits/"+u).set(w[u]-1); }); }
 
     function openSubWindow() {
         subWindow = window.open("", "QuizSub", "width=1200,height=800");
         subWindow.document.write(`<html><head><style>
-            body{background:#000;color:#fff;display:flex;font-family:sans-serif;margin:0;overflow:hidden;}
+            body{background:#000;color:#fff;display:flex;font-family:sans-serif;margin:0;overflow:hidden;cursor:pointer;}
             #main{flex:3;display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:2px solid #333;padding:20px;}
             #ranking{flex:1;background:#111;padding:20px;}
             #text{font-size:4.2rem;text-align:center;width:95%;line-height:1.4;display:flex;flex-wrap:wrap;justify-content:center;}
@@ -286,21 +235,22 @@
             .banner{position:fixed;top:0;left:0;width:100%;background:#c0392b;color:#f1c40f;font-size:5rem;text-align:center;padding:25px;z-index:99;}
             .ans-box{font-size:7rem;border:12px solid #f1c40f;padding:25px;border-radius:25px;margin-top:35px;display:none;color:#f1c40f;font-weight:bold;}
             .rank-item{font-size:1.8rem;margin-bottom:12px;display:flex;justify-content:space-between;border-bottom:1px solid #333;}
-        </style></head><body>
+            #init-msg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.2);padding:10px 20px;border-radius:20px;}
+        </style></head><body onclick="initAudio()">
+            <div id="init-msg">🔈 音声有効化のため一度クリック</div>
             <div id="winner-display" style="display:none;"></div>
             <div id="main"><div id="text"></div><div id="res-msg" style="font-size:6rem;font-weight:bold;"></div><div id="res-ans" class="ans-box"></div></div>
             <div id="ranking"><h2>RANKING</h2><div id="rank-list"></div></div>
             <script>
+                let audioReady = false;
                 const snd = {
                     buzzer: new Audio("https://raw.githubusercontent.com/yone-labo/quiz-sounds/main/buzzer.mp3"),
                     correct: new Audio("https://raw.githubusercontent.com/yone-labo/quiz-sounds/main/correct.mp3"),
                     wrong: new Audio("https://raw.githubusercontent.com/yone-labo/quiz-sounds/main/wrong.mp3")
                 };
-                const play=(id)=>{ if(snd[id]) { snd[id].currentTime=0; snd[id].play().catch(e=>{}); } };
-                window.updateRanking=(s)=>{
-                    const sorted = Object.entries(s).sort((a,b)=>b[1]-a[1]);
-                    document.getElementById('rank-list').innerHTML = sorted.map(([n,v])=>'<div class="rank-item"><span>'+n+'</span><span style="color:#ff4757;">'+Number(v)+'pt</span></div>').join('');
-                };
+                window.initAudio = () => { if(!audioReady){ Object.values(snd).forEach(s=>{s.play().then(()=>s.pause()).catch(e=>{}); s.currentTime=0;}); audioReady=true; document.getElementById('init-msg').style.display='none'; } };
+                const play=(id)=>{ if(snd[id] && audioReady) { snd[id].currentTime=0; snd[id].play().catch(e=>{}); } };
+                window.updateRanking=(s)=>{ const sorted = Object.entries(s).sort((a,b)=>b[1]-a[1]); document.getElementById('rank-list').innerHTML = sorted.map(([n,v])=>'<div class="rank-item"><span>'+n+'</span><span style="color:#ff4757;">'+Number(v)+'pt</span></div>').join(''); };
                 window.showWinner=(n)=>{ if(n){ play('buzzer'); document.getElementById('winner-display').innerHTML='<div class="banner">'+n+' 解答中！</div>'; document.getElementById('winner-display').style.display='block'; } };
                 window.showResultOnlyMsg=(m,c,sn)=>{ play(sn); document.getElementById('winner-display').style.display='none'; document.getElementById('res-msg').innerText=m; document.getElementById('res-msg').style.color=c; };
                 window.revealAnswer=(a, qf)=>{ document.getElementById('text').innerHTML = qf; document.getElementById('res-ans').innerText=a; document.getElementById('res-ans').style.display='block'; };
@@ -314,28 +264,13 @@
         db.ref().on("value", snap => {
             const d = snap.val() || {}, n = ni.value.trim();
             const w = (d.waits && d.waits[n]) || 0;
-            if(n) {
-                document.getElementById("p-score").innerText = (d.scores && d.scores[n]) || 0;
-                document.getElementById("displayPlayerName").innerText = n;
-                document.getElementById("wait-status").innerText = w > 0 ? "あと " + w + " 回休み" : "";
-            }
-            if (d.status === "active" && n!=="" && w === 0) { 
-                btn.style.display="block"; btn.disabled=false; btn.classList.add("active"); 
-            } else if (d.status === "pushed" && d.winner === n) { 
-                btn.style.display="none"; 
-            } else { btn.disabled=true; btn.classList.remove("active"); btn.style.display="block"; }
+            if(n) { document.getElementById("p-score").innerText = (d.scores && d.scores[n]) || 0; document.getElementById("displayPlayerName").innerText = n; document.getElementById("wait-status").innerText = w > 0 ? "あと " + w + " 回休み" : ""; }
+            if (d.status === "active" && n!=="" && w === 0) { btn.style.display="block"; btn.disabled=false; btn.classList.add("active"); } 
+            else if (d.status === "pushed" && d.winner === n) { btn.style.display="none"; } 
+            else { btn.disabled=true; btn.classList.remove("active"); btn.style.display="block"; }
         });
     }
-
-    function pushButton() { 
-        const n = document.getElementById("playerName").value.trim(); if(!n) return;
-        db.ref().once("value", snap => {
-            const data = snap.val() || {};
-            if(data.status === "active" && (!data.waits || !data.waits[n])) {
-                db.ref("status").transaction(c => { if(c==="active"){ db.ref("winner").set(n); return "pushed"; } });
-            }
-        });
-    }
+    function pushButton() { const n = document.getElementById("playerName").value.trim(); if(!n) return; db.ref().once("value", snap => { const data = snap.val() || {}; if(data.status === "active" && (!data.waits || !data.waits[n])) { db.ref("status").transaction(c => { if(c==="active"){ db.ref("winner").set(n); return "pushed"; } }); } }); }
 </script>
 </body>
 </html>
