@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Final Fixed</title>
+    <title>QuizConsole Pro - Integrated Fixed v3</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -55,7 +55,7 @@
                 <button style="flex:1; height:60px; background:var(--danger); color:white; font-size:1.5rem; border:none; border-radius:8px; cursor:pointer;" onclick="manualJudge(false)">❌ 誤答</button>
             </div>
             <button style="width:100%; height:45px; background:#95a5a6; color:white; border:none; border-radius:8px; cursor:pointer; margin-bottom:5px;" onclick="resumeQuiz()">読上再開 / スルー</button>
-            <button id="showAnsBtn" style="width:100%; height:45px; background:var(--warn); color:white; display:none; border:none; border-radius:8px; cursor:pointer;" onclick="revealAnswerToSub()">📢 視聴者に答えを表示</button>
+            <button id="showAnsBtn" style="width:100%; height:45px; background:var(--warn); color:white; border:none; border-radius:8px; cursor:pointer;" onclick="revealAnswerToSub()">📢 視聴者に答えを表示</button>
         </div>
 
         <div class="panel">
@@ -153,6 +153,10 @@
                 if(!currentWinner && subWindow && !subWindow.closed) {
                     subWindow.document.getElementById('winner-display').style.display = 'none';
                 }
+                // 状態がidleになった瞬間に休みを消化
+                if(data.status === "idle" && lastStatus === "active") {
+                    reduceWaits();
+                }
                 lastStatus = data.status;
             });
 
@@ -172,12 +176,9 @@
 
     function parseCSV(t) { return t.split(/\r?\n/).slice(1).filter(r => r.trim() !== "").map(row => { const p = row.split(","); return { q: p[0] || "", a: p[1] || "" }; }); }
     
-    // ジャンル切替時にシャッフルして表示
     function changeGenre(g) { 
         currentGenre = g; 
-        if(masterData[currentGenre]) {
-            masterData[currentGenre].sort(() => Math.random() - 0.5);
-        }
+        if(masterData[currentGenre]) { masterData[currentGenre].sort(() => Math.random() - 0.5); }
         renderList(); 
     }
 
@@ -192,12 +193,7 @@
     function openByType(type) {
         if(!currentQuiz.q) return;
         const regexMap = { 
-            kanji: /[\u4E00-\u9FFF]/, 
-            hira: /[\u3040-\u309F]/, 
-            kana: /[\u30A0-\u30FF]/, 
-            num: /[0-9０-９]/, 
-            alp: /[a-zA-Z]/, 
-            // 記号に括弧類を追加
+            kanji: /[\u4E00-\u9FFF]/, hira: /[\u3040-\u309F]/, kana: /[\u30A0-\u30FF]/, num: /[0-9０-９]/, alp: /[a-zA-Z]/, 
             sym: /[、。！？\s\?？!！\(\)（）「」『』【】\[\]\{\}：：；；,.．，]/ 
         };
         Array.from(currentQuiz.q).forEach((char, i) => { if (regexMap[type] && regexMap[type].test(char)) if (!revealedIndexes.includes(i)) revealedIndexes.push(i); });
@@ -210,10 +206,10 @@
     function applyQuiz(quizObj) {
         stopQuiz(); currentQuiz = quizObj; revealedIndexes = [];
         usedQuizzes.add(quizObj.q);
+        // 新しい問題セット時は強制的にidleにし、休みを1減らす
         db.ref().update({ status: "idle", winner: "" });
         document.getElementById("adminAnswer").innerText = currentQuiz.a;
         document.getElementById("adminFullText").innerText = currentQuiz.q;
-        document.getElementById("showAnsBtn").style.display = "none";
         renderList();
         if (subWindow && !subWindow.closed) subWindow.resetForNext();
         syncDisplay();
@@ -243,9 +239,9 @@
         
         if (isCorrect) {
             if (subWindow && !subWindow.closed) subWindow.showResultOnlyMsg(currentWinner + " 正解！", "#2ecc71", 'correct');
-            document.getElementById("showAnsBtn").style.display = "block";
             db.ref("waits/" + currentWinner).set(0);
             stopQuiz();
+            db.ref("status").set("idle");
         } else {
             if (subWindow && !subWindow.closed) subWindow.showFlash("❌", "#e74c3c", 'wrong');
             const waitVal = parseInt(document.getElementById("missWait").value) || 0;
@@ -255,7 +251,9 @@
     }
 
     function revealAnswerToSub() { 
-        if (subWindow && !subWindow.closed) subWindow.revealAnswer(currentQuiz.a, currentQuiz.q); 
+        if (subWindow && !subWindow.closed && currentQuiz.q) {
+            subWindow.revealAnswer(currentQuiz.a, currentQuiz.q); 
+        }
     }
     
     function stopQuiz() { isRunning = false; clearInterval(timer); timer = null; }
@@ -267,6 +265,13 @@
     }
     function resetAllScores() { if(confirm("全点数と休み状態をリセットしますか？")) { db.ref("scores").remove(); db.ref("waits").remove(); } }
     function reloadCurrentQuiz() { if(currentQuiz.q) applyQuiz(currentQuiz); }
+
+    function reduceWaits() {
+        db.ref("waits").once("value", snap => {
+            const waits = snap.val() || {};
+            for(let user in waits) { if(waits[user] > 0) db.ref("waits/" + user).set(waits[user] - 1); }
+        });
+    }
 
     function openSubWindow() {
         subWindow = window.open("", "QuizSub", "width=1200,height=800");
@@ -332,21 +337,14 @@
 
     function pushButton() { 
         const n = document.getElementById("playerName").value.trim(); if(!n) return;
-        db.ref("waits/" + n).once("value", snap => {
-            if((snap.val() || 0) === 0) {
+        db.ref().once("value", snap => {
+            const data = snap.val() || {};
+            const waitCount = (data.waits && data.waits[n]) || 0;
+            if(data.status === "active" && waitCount === 0) {
                 db.ref("status").transaction(c => { if(c==="active"){ db.ref("winner").set(n); return "pushed"; } });
             }
         });
     }
-
-    db.ref("status").on("value", snap => {
-        if(snap.val() === "active" && lastStatus === "idle") {
-            db.ref("waits").once("value", wSnap => {
-                const waits = wSnap.val() || {};
-                for(let user in waits) { if(waits[user] > 0) db.ref("waits/" + user).set(waits[user] - 1); }
-            });
-        }
-    });
 </script>
 </body>
 </html>
