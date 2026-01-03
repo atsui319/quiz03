@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Final Fixed</title>
+    <title>QuizConsole Pro - Full Integrated</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -19,6 +19,7 @@
         .panel { background: #f8f9fa; border: 1px solid #ddd; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
         .judge-panel { background: #fff3cd; border: 2px solid #f1c40f; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: center; }
         
+        /* 文字種別フィルタ */
         .filter-group { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
         .btn-filter { background: #95a5a6; color: white; padding: 8px; font-size: 0.75rem; border: none; border-radius: 4px; flex: 1; cursor: pointer; }
 
@@ -53,9 +54,15 @@
 
         <div class="judge-panel">
             <div>解答中: <span id="activePlayer" style="font-size:2rem; font-weight:bold; color:var(--danger);">---</span></div>
+            
+            <div style="margin: 10px 0; background: rgba(255,255,255,0.5); padding: 5px; border-radius: 8px; display: flex; justify-content: center; gap: 20px;">
+                <label>正解: <input type="number" id="plusPts" value="1" style="width:40px; text-align:center;"> pt</label>
+                <label>誤答: <input type="number" id="minusPts" value="-1" style="width:40px; text-align:center;"> pt</label>
+            </div>
+
             <div class="judge-btns" style="display:flex; gap:10px; margin:10px 0;">
-                <button style="flex:1; height:60px; background:var(--success); color:white; font-size:1.5rem; border:none; border-radius:8px; cursor:pointer;" onclick="manualJudge(true)">⭕ 正解 (+1)</button>
-                <button style="flex:1; height:60px; background:var(--danger); color:white; font-size:1.5rem; border:none; border-radius:8px; cursor:pointer;" onclick="manualJudge(false)">❌ 誤答 (-1)</button>
+                <button style="flex:1; height:60px; background:var(--success); color:white; font-size:1.5rem; border:none; border-radius:8px; cursor:pointer;" onclick="manualJudge(true)">⭕ 正解</button>
+                <button style="flex:1; height:60px; background:var(--danger); color:white; font-size:1.5rem; border:none; border-radius:8px; cursor:pointer;" onclick="manualJudge(false)">❌ 誤答</button>
             </div>
             <button id="showAnsBtn" style="width:100%; height:45px; background:var(--warn); color:white; display:none; border:none; border-radius:8px; cursor:pointer;" onclick="revealAnswerToSub()">📢 視聴者に答えを表示</button>
             <button style="width:100%; margin-top:5px; background:#95a5a6; color:white; border:none; border-radius:4px; cursor:pointer;" onclick="resumeQuiz()">読上再開 / スルー</button>
@@ -88,7 +95,7 @@
 
     <div class="sidebar">
         <div class="panel" style="background:#e3f2fd; border-color:#2196f3;">
-            <strong>🏆 スコア修正 & ランキング</strong>
+            <strong>🏆 スコア手動修正 & ランキング</strong>
             <div id="admin-score-list" style="margin-top:10px; max-height: 200px; overflow-y: auto;"></div>
         </div>
 
@@ -216,11 +223,13 @@
         }, intervalTime);
     }
 
-    // 正解・誤答の点数管理ロジック
     function manualJudge(isCorrect) {
         if (!currentWinner) return;
-        const pts = isCorrect ? 1 : -1;
-        // Firebaseのスコアを更新
+        // 入力値から加点・減点の数値を取得
+        const pVal = parseInt(document.getElementById("plusPts").value) || 0;
+        const mVal = parseInt(document.getElementById("minusPts").value) || 0;
+        const pts = isCorrect ? pVal : mVal;
+
         db.ref("scores/" + currentWinner).transaction(s => (s || 0) + pts);
         
         if (isCorrect) {
