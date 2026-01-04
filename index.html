@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Ultimate Edition</title>
+    <title>QuizConsole Pro - Bug Fixed Edition</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -107,7 +107,7 @@
 
 <div id="player-ui" class="container" style="display:none; text-align:center;">
     <div style="font-size:2rem; color:var(--danger); font-weight:bold;">Score: <span id="p-score">0</span></div>
-    <div id="wait-status" style="color:red; font-size:1rem; font-weight:bold;"></div>
+    <div id="wait-status" style="color:red; font-size:1.2rem; font-weight:bold; height:1.5em; margin:10px;"></div>
     <input type="text" id="playerName" placeholder="名前を入力" style="padding:15px; font-size:1.2rem; margin:20px; width:80%; text-align:center;">
     <div id="player-board-input" style="display:none; margin:20px;">
         <input type="text" id="boardText" placeholder="答えを入力" style="padding:15px; font-size:1.5rem; width:80%;"><br><br>
@@ -181,6 +181,15 @@
     function applyQuiz(obj) {
         stopQuiz(); currentQuiz = obj; revealedIndexes = []; 
         usedQuizzes.add(obj.q);
+        
+        // 【修正】クイズセット時に「休み中」の人のカウントを-1する
+        db.ref("waits").once("value", snap => {
+            const waits = snap.val() || {};
+            const updates = {};
+            Object.entries(waits).forEach(([n, v]) => { if(v > 0) updates[n] = v - 1; });
+            db.ref("waits").update(updates);
+        });
+
         db.ref().update({ status: "idle", winner: "", correctList: null, wrongList: null, showBoard: null, boardAnswers: null, finalReveal: false });
         document.getElementById("adminAnswer").innerText = obj.a;
         document.getElementById("adminFullText").innerText = obj.q;
@@ -267,7 +276,7 @@
             } else boardDiv.style.display = "none";
             
             if(d.status === "pushed" && lastStatus !== "pushed") { 
-                stopQuiz(); if(subWindow) subWindow.showWinner(currentWinner); 
+                stopQuiz(); // 視聴者側は監視しているのでここでの呼び出しは不要に
             }
             lastStatus = d.status;
             if(subWindow) {
@@ -301,19 +310,33 @@
             <div id="banner" style="display:none;" class="banner"></div>
             <div id="main"><div id="text"></div><div id="ans" class="ans-box"></div><div id="board-area"></div></div>
             <div id="ranking"><h2>RANKING</h2><div id="rank-list"></div></div>
+            <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+            <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
             <script>
+                const firebaseConfig = { databaseURL: "https://realtime-database-c0015-default-rtdb.firebaseio.com/" };
+                firebase.initializeApp(firebaseConfig);
+                const db = firebase.database();
+
                 let audioReady = false;
                 const snd = { buzzer: new Audio("./buzzer.mp3"), correct: new Audio("./correct.mp3"), wrong: new Audio("./wrong.mp3"), type: new Audio("./type.mp3") };
                 window.initAudio = () => { if(!audioReady){ Object.values(snd).forEach(s=>{s.play().then(()=>s.pause());}); audioReady=true; } };
                 window.playTypeSound = () => { if(audioReady) { snd.type.currentTime=0; snd.type.play(); } };
                 
-                window.showWinner = (name) => { 
-                    if(audioReady) snd.buzzer.play(); 
+                // 【修正】Firebaseを直接監視して解答者名を100%表示
+                let lastSubStatus = "";
+                db.ref().on("value", snap => {
+                    const d = snap.val() || {};
                     const b = document.getElementById('banner');
-                    b.innerText = name + " さんが解答中！"; 
-                    b.style.display='block'; b.style.background = '#c0392b';
-                };
-                
+                    if(d.status === "pushed" && d.winner) {
+                        if(lastSubStatus !== "pushed") {
+                           if(audioReady) snd.buzzer.play();
+                           b.innerText = d.winner + " さんが解答中！"; 
+                           b.style.display='block'; b.style.background = '#c0392b';
+                        }
+                    }
+                    lastSubStatus = d.status;
+                });
+
                 window.showResult = (m,c,s) => { if(audioReady) snd[s].play(); document.getElementById('banner').style.background=c; document.getElementById('banner').innerText=m; };
                 window.showFlash = (m,c,s) => { if(audioReady) snd[s].play(); };
 
@@ -371,9 +394,8 @@
         const n = document.getElementById("playerName").value.trim(); if(!n) return;
         db.ref().once("value", snap => {
             const d = snap.val();
-            if(!d.winner && (!d.correctList || !d.correctList[n]) && (!d.wrongList || !d.wrongList[n])) {
+            if(!d.winner && (!d.correctList || !d.correctList[n]) && (!d.wrongList || !d.wrongList[n]) && (!d.waits || (d.waits[n]||0) === 0)) {
                 db.ref("status").set("pushed"); db.ref("winner").set(n);
-                if(d.waits && d.waits[n]) db.ref("waits/"+n).transaction(v => (v > 0 ? v - 1 : 0));
             }
         });
     }
