@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Final Control</title>
+    <title>QuizConsole Pro - Board Control</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -18,6 +18,15 @@
         .sidebar { width: 380px; background: white; padding: 15px; border-radius: 12px; height: 90vh; overflow-y: auto; }
         .btn-genre { padding: 8px; font-size: 0.75rem; cursor: pointer; flex: 1; border: 1px solid #ccc; background: #fff; }
         .btn-genre.active { background: var(--primary); color: white; }
+        
+        /* ボード回答リスト */
+        .board-ans-item { background: #f8f9fa; border: 1px solid #ddd; padding: 10px; margin-top: 5px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .judge-btns-mini { display: flex; gap: 4px; }
+        .judge-btns-mini button { padding: 6px 10px; cursor: pointer; border-radius: 4px; border: none; font-weight: bold; color: white; font-size: 0.8rem; }
+        .btn-ok { background: var(--success); }
+        .btn-ng { background: var(--danger); }
+        .btn-del { background: #7f8c8d; } /* 削除ボタン */
+
         .type-btns button { padding: 8px 10px; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: white; font-weight: bold; font-size: 0.85rem; }
         #remote-button { width: 220px; height: 220px; border-radius: 50%; font-size: 2rem; font-weight: bold; cursor: pointer; border: 10px solid #eee; }
         #remote-button:not(:disabled) { background: var(--danger); color: white; border-color: #c0392b; }
@@ -51,7 +60,9 @@
                         <button onclick="toggleRanking()" style="cursor:pointer;">🏆 ランキング切替</button>
                     </div>
                     <div id="activePlayer" style="font-size:2.8rem; font-weight:bold; color:var(--danger); min-height:1.2em;">---</div>
-                    <div id="boardResults" style="display:none; text-align:left; background:white; padding:10px; border-radius:8px; margin:10px 0; max-height:180px; overflow-y:auto; border:1px solid #ddd;"></div>
+                    
+                    <div id="boardResults" style="display:none; text-align:left; background:white; padding:10px; border-radius:8px; margin:10px 0; max-height:220px; overflow-y:auto; border:1px solid #ddd;"></div>
+                    
                     <div style="display:flex; gap:10px;">
                         <button style="flex:1; height:65px; background:var(--success); color:white; font-size:1.8rem; border-radius:8px; border:none; cursor:pointer;" onclick="judge(true)">⭕ 正解</button>
                         <button style="flex:1; height:65px; background:var(--danger); color:white; font-size:1.8rem; border-radius:8px; border:none; cursor:pointer;" onclick="judge(false)">❌ 誤答</button>
@@ -159,7 +170,11 @@
                 bArea.innerHTML = Object.entries(d.boardAnswers).map(([n, ans]) => `
                     <div class="board-ans-item">
                         <span><strong>${n}:</strong> ${ans}</span>
-                        <button onclick="judge(true, '${n}')">〇</button>
+                        <div class="judge-btns-mini">
+                            <button class="btn-ok" onclick="judge(true, '${n}')">〇</button>
+                            <button class="btn-ng" onclick="judge(false, '${n}')">×</button>
+                            <button class="btn-del" onclick="removeBoard('${n}')">消去</button>
+                        </div>
                     </div>`).join('');
             } else { bArea.style.display = 'none'; }
 
@@ -202,16 +217,15 @@
             Object.entries(w).forEach(([n, v]) => { up[n] = Math.max(0, v - 1); });
             db.ref('waits').update(up);
         });
-        // statusを 'waiting' にして視聴者画面に表示させない
         db.ref().update({ status: "waiting", winner: "", correctList: null, wrongList: null, boardAnswers: null, finalReveal: false });
         document.getElementById('ans-hint').innerText = a;
         if(subWindow) subWindow.resetForNext();
-        sync(true); // 管理画面だけ更新、視聴者はstatus=waitingにより非表示
+        sync(true);
         renderList();
     }
 
     function startQuiz() {
-        db.ref('status').set('active'); // activeにして早押し有効化
+        db.ref('status').set('active');
         timer = setInterval(() => {
             if(revealed.length < currentQuiz.q.length) {
                 let n = 0; while(revealed.includes(n)) n++;
@@ -224,14 +238,9 @@
         const h = Array.from(currentQuiz.q).map((c, i) => revealed.includes(i) ? `<span>${c}</span>` : `<span class="hidden">${c}</span>`).join('');
         document.getElementById('display').innerHTML = h;
         if(subWindow) {
-            // ステータスがwaitingかつ強制非表示フラグがある場合は表示しない
             db.ref('status').once('value', snap => {
-                const s = snap.val();
-                if(s === "waiting" || forceHideSub) {
-                    subWindow.document.getElementById('text').innerHTML = "";
-                } else {
-                    subWindow.document.getElementById('text').innerHTML = h;
-                }
+                if(snap.val() === "waiting" || forceHideSub) subWindow.document.getElementById('text').innerHTML = "";
+                else subWindow.document.getElementById('text').innerHTML = h;
             });
         }
     }
@@ -250,14 +259,20 @@
             db.ref('scores/' + p).transaction(s => (s||0) - 1);
             db.ref('waits/' + p).set(2);
             db.ref('wrongList/' + p).set(true);
-            if(subWindow) subWindow.showBanner("❌ 誤答", "#e74c3c");
+            // 修正：×判定してもボードデータ（boardAnswers）は消さずにバナーのみ表示
+            if(subWindow) subWindow.showBanner(p + " ×", "#e74c3c");
             db.ref().update({ status: "pushed_done", winner: "" });
         }
     }
 
+    // 個別にボードを非表示（Firebaseから削除）にする関数
+    function removeBoard(p) {
+        db.ref('boardAnswers/' + p).remove();
+    }
+
     function openType(t) {
         play('type');
-        db.ref('status').set('active'); // 文字種公開した瞬間から早押し可能にする
+        db.ref('status').set('active');
         const m = { 
             kanji:/[\u4E00-\u9FFF]/, hira:/[\u3040-\u309F]/, kana:/[\u30A0-\u30FF]/, num:/[0-9０-９]/, alp:/[a-zＡ-Ｚ]/i,
             sym:/[！？、。：；／＿－＝＋＊＆％＄＃＠！”＃＄％＆’（）＊＋，－．／：；＜＝＞？＠［＼］＾＿｀｛｜｝～「」『』【】（）ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]/
@@ -292,7 +307,6 @@
             } else {
                 bUI.style.display = 'none'; btn.style.display = 'inline-block';
             }
-            // activeな時だけボタンを有効化（waiting時は押せない）
             btn.disabled = !(name && w === 0 && d.status === 'active' && !d.winner);
         });
     }
@@ -336,7 +350,9 @@
                     if(d.mode === 'board' && d.boardAnswers) {
                         area.innerHTML = Object.entries(d.boardAnswers).map(([n, ans]) => {
                             const isFin = d.finalReveal || (d.correctList && d.correctList[n]);
-                            return '<div style="background:#222;border:3px solid #555;padding:20px;border-radius:15px;min-width:180px;text-align:center;">'+
+                            const isWrong = d.wrongList && d.wrongList[n];
+                            return '<div style="background:#222;border:3px solid '+(isWrong?'#e74c3c':'#555')+';padding:20px;border-radius:15px;min-width:180px;text-align:center;position:relative;">'+
+                                   (isWrong?'<div style="position:absolute;top:5px;right:10px;color:#e74c3c;font-weight:bold;">×</div>':'')+
                                    '<div style="font-size:1.2rem;color:#aaa;">'+n+'</div><div style="font-size:2.5rem;color:#f1c40f;font-weight:bold;">'+(isFin ? ans : "？？？")+'</div></div>';
                         }).join('');
                     } else { area.innerHTML = ""; }
