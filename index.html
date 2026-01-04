@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Visibility Update</title>
+    <title>QuizConsole Pro - Final Stability</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -248,8 +248,9 @@
         } else {
             db.ref("scores/" + player).transaction(s => (s || 0) + mPts);
             db.ref("wrongList/" + player).set(true);
-            // 修正: ボードモードの場合、誤答した人のオープン状態を即座にオフにする
-            if(currentMode === "board") db.ref("showWrongBoard/" + player).set(false);
+            
+            // 重要：誤答判定時に「3秒後に消す」指示を視聴者画面に送る
+            if(subWindow && !subWindow.closed) subWindow.triggerDelayedHide(player);
             
             if(document.getElementById("applyWaitOnWrong").checked) db.ref("waits/"+player).set(waitCount);
             if(subWindow) subWindow.showFlash("❌","#e74c3c",'wrong');
@@ -295,6 +296,7 @@
                     }).join("");
                 } else boardDiv.innerHTML = "回答待機中...";
             } else boardDiv.style.display = "none";
+            
             if(d.status === "pushed" && lastStatus !== "pushed") { stopQuiz(); if(subWindow) subWindow.showWinner(currentWinner); }
             lastStatus = d.status;
             if(subWindow) subWindow.syncBoard(d);
@@ -317,7 +319,7 @@
             .banner{position:fixed;top:0;width:100%;background:#c0392b;font-size:5rem;text-align:center;padding:20px;z-index:10;}
             .ans-box{font-size:5rem;border:10px solid #f1c40f;padding:20px;border-radius:20px;margin-top:20px;display:none;color:#f1c40f;text-align:center;}
             #board-area{display:flex;flex-wrap:wrap;justify-content:center;margin-top:20px;width:100%;}
-            .card{background:#222;border:2px solid #555;margin:10px;padding:15px;border-radius:10px;min-width:180px;text-align:center;}
+            .card{background:#222;border:2px solid #555;margin:10px;padding:15px;border-radius:10px;min-width:180px;text-align:center;transition: opacity 0.5s;}
             .card.correct{border-color:#2ecc71;background:#0a2a0a;}
             .card.wrong{border-color:#e74c3c;background:#2a0a0a;}
             #final-view{position:absolute;top:0;left:0;width:100%;height:100%;background:#000;z-index:100;display:none;padding:50px;overflow-y:auto;box-sizing:border-box;}
@@ -329,25 +331,51 @@
             </div>
             <div id="ranking"><h2>RANKING</h2><div id="rank-list"></div></div>
             <script>
-                let audioReady = false, scores = {};
+                let audioReady = false, scores = {}, delayedHiding = new Set();
                 const snd = { buzzer: new Audio("./buzzer.mp3"), correct: new Audio("./correct.mp3"), wrong: new Audio("./wrong.mp3"), type: new Audio("./type.mp3") };
                 window.initAudio = () => { if(!audioReady){ Object.values(snd).forEach(s=>{s.play().then(()=>s.pause());}); audioReady=true; } };
                 window.playTypeSound = () => { if(audioReady) { snd.type.currentTime=0; snd.type.play(); } };
-                window.showWinner = (n) => { if(audioReady) snd.buzzer.play(); document.getElementById('banner').innerText = n + " さんが解答中！"; document.getElementById('banner').style.display='block'; };
+                
+                // 解答者名を表示するよう修正済み
+                window.showWinner = (n) => { 
+                    if(audioReady) snd.buzzer.play(); 
+                    document.getElementById('banner').innerText = (n || "解答者") + " さんが解答中！"; 
+                    document.getElementById('banner').style.display='block'; 
+                };
+                
                 window.showResult = (m,c,s) => { if(audioReady) snd[s].play(); document.getElementById('banner').style.background=c; document.getElementById('banner').innerText=m; };
                 window.showFlash = (m,c,s) => { if(audioReady) snd[s].play(); };
+
+                // 誤答判定から3秒後にリストに追加し、syncBoardで消去対象とする
+                window.triggerDelayedHide = (player) => {
+                    setTimeout(() => {
+                        delayedHiding.add(player);
+                    }, 3000); // 3秒間の余韻
+                };
+
                 window.syncBoard = (d) => {
                     if(d.mode !== 'board' || !d.boardAnswers) return;
                     document.getElementById('board-area').innerHTML = Object.entries(d.boardAnswers).map(([name, ans]) => {
                         const isC = d.correctList && d.correctList[name], isW = d.wrongList && d.wrongList[name], showW = d.showWrongBoard && d.showWrongBoard[name];
+                        
+                        // 誤答(isW)かつ遅延消滅リストに入っているなら、管理者指示(showW)がない限り表示しない
+                        if(isW && delayedHiding.has(name) && !showW) return "";
+                        
                         let disp = (d.finalReveal || isC || (isW && showW)) ? ans : "？？？";
                         return '<div class="card '+(isC?'correct':isW?'wrong':'')+'"><div>'+name+'</div><div style="font-size:2rem">'+disp+'</div></div>';
                     }).join('');
                 };
+
                 window.revealAnswer = (a, q) => { document.getElementById('text').innerHTML=q; document.getElementById('ans').innerText=a; document.getElementById('ans').style.display='block'; };
                 window.updateRanking = (s) => { scores = s; document.getElementById('rank-list').innerHTML = Object.entries(s).sort((a,b)=>b[1]-a[1]).map(([n,v])=>'<div>'+n+': '+v+'pt</div>').join(''); };
                 window.toggleScorePanel = () => { const r = document.getElementById('ranking'); r.style.display = r.style.display === 'none' ? 'block' : 'none'; };
-                window.resetForNext = () => { document.getElementById('banner').style.display='none'; document.getElementById('ans').style.display='none'; document.getElementById('board-area').innerHTML=''; document.getElementById('final-view').style.display='none'; };
+                window.resetForNext = () => { 
+                    delayedHiding.clear();
+                    document.getElementById('banner').style.display='none'; 
+                    document.getElementById('ans').style.display='none'; 
+                    document.getElementById('board-area').innerHTML=''; 
+                    document.getElementById('final-view').style.display='none'; 
+                };
                 window.showResultView = (history) => {
                     const f = document.getElementById('final-view'); f.style.display = 'block';
                     let html = '<h1>FINAL RANKING</h1>';
