@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Lock Fixed</title>
+    <title>QuizConsole Pro - Final Fixed</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -139,12 +139,21 @@
     </div>
 </div>
 
+<audio id="local-push-sound" src="https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3"></audio>
+
 <script>
     const firebaseConfig = { databaseURL: "https://realtime-database-c0015-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    function play(s) { if(subWindow && !subWindow.closed) subWindow.play(s); }
+    // 音声再生ヘルパー
+    function play(s) { 
+        if(subWindow && !subWindow.closed) subWindow.play(s);
+        // 管理者画面でも鳴らす
+        const audio = new Audio(s === 'push' ? 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3' : 
+                               s === 'correct' ? 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/correct.mp3' : 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/wrong.mp3');
+        audio.play().catch(()=>{});
+    }
 
     const URLS = {
         ori: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFuFjp8CnBMqfdRPKbQ_FPC6zWwgdQBVdTDsdWTHbBN92vXADxbVTmHdLm_C3Yn-Eeu5ZWm9WXRb0c/pub?output=csv",
@@ -186,7 +195,12 @@
             curWinner = d.winner || "";
             document.getElementById('activePlayer').innerText = curWinner ? "🎤 " + curWinner : (d.status === 'all_writing' ? "🖊 全員解答中" : "待機中");
             
-            document.getElementById('all-board-ctrl').style.display = (d.mode === 'all_board') ? 'block' : 'none';
+            // ステータスがpushedに変わった瞬間、タイマー停止＆音再生
+            if(d.status === "pushed" && lastStatus !== "pushed") { 
+                clearInterval(timer); 
+                play('push'); 
+            }
+            lastStatus = d.status;
 
             const bArea = document.getElementById('boardResults');
             const bInner = document.getElementById('board-list-inner');
@@ -199,15 +213,11 @@
                         <div class="judge-btns-mini">
                             <button style="background:var(--success);color:white;padding:5px 10px;border:none;border-radius:4px;" onclick="judge(true, '${n}')">〇</button>
                             <button style="background:var(--danger);color:white;padding:5px 10px;border:none;border-radius:4px;" onclick="judge(false, '${n}')">×</button>
-                            <button style="background:#7f8c8d;color:white;padding:5px 10px;border:none;border-radius:4px;" onclick="removeBoard('${n}')">消</button>
                         </div>
                     </div>`;
                 }).join('');
             } else { bArea.style.display = 'none'; }
             
-            if(d.status === "pushed" && lastStatus !== "pushed") { clearInterval(timer); play('push'); }
-            lastStatus = d.status;
-
             const scores = d.scores || {}, waits = d.waits || {};
             document.getElementById('full-mgr-list').innerHTML = Object.keys(scores).sort((a,b)=>scores[b]-scores[a]).map(n => `
                 <div style="border-bottom:1px solid #eee; padding:5px 0;">
@@ -224,8 +234,6 @@
                 subWindow.syncBoard(d); 
                 subWindow.toggleRank(d.rankVisible !== false); 
                 subWindow.updateRank(Object.entries(scores).sort((a,b)=>b[1]-a[1]));
-                if(d.isGameSet) subWindow.showResult(Object.entries(scores).sort((a,b)=>b[1]-a[1]), d.history);
-                else subWindow.hideResult();
             }
         });
     }
@@ -233,7 +241,7 @@
     function modifyScore(name, val) { db.ref('scores/' + name).transaction(s => (s||0) + val); }
     function modifyWait(name, val) { db.ref('waits/' + name).transaction(w => Math.max(0, (w||0) + val)); }
     function toggleRanking() { rankVisible = !rankVisible; db.ref('rankVisible').set(rankVisible); }
-    function setGenre(g) { activeGenre = g; document.querySelectorAll('.btn-genre').forEach(b => b.classList.toggle('active', b.innerText === g || (g === 'all' && b.innerText === '全'))); renderList(); }
+    function setGenre(g) { activeGenre = g; renderList(); }
 
     function renderList() {
         const s = document.getElementById('search').value.toLowerCase();
@@ -256,8 +264,7 @@
             Object.entries(w).forEach(([n, v]) => { up[n] = Math.max(0, v - 1); });
             db.ref('waits').update(up);
         });
-        db.ref('history').push({ q, a });
-        db.ref().update({ status: "waiting", winner: "", correctList: null, wrongList: null, boardAnswers: null, finalReveal: false, isGameSet: false });
+        db.ref().update({ status: "waiting", winner: "", correctList: null, wrongList: null, boardAnswers: null, finalReveal: false });
         if(subWindow) subWindow.resetForNext();
         sync(true); renderList();
     }
@@ -278,39 +285,31 @@
         const h = Array.from(currentQuiz.q).map((c, i) => revealed.includes(i) ? `<span>${c}</span>` : `<span class="hidden">${c}</span>`).join('');
         document.getElementById('display').innerHTML = h;
         if(subWindow && !forceHideSub) subWindow.document.getElementById('text').innerHTML = h;
-        else if(subWindow) subWindow.document.getElementById('text').innerHTML = "";
     }
 
     function judge(isOK, targetPlayer = null) {
-        // 解答権（curWinner）または個別判定（targetPlayer）を取得
         const p = targetPlayer || curWinner; if(!p) return;
-        db.ref().once('value', snap => {
-            const d = snap.val();
-            const pt = parseInt(document.getElementById('currentPoint').value) || 1;
-            if(isOK) {
-                play('correct');
-                db.ref('scores/' + p).transaction(s => (s||0) + pt);
-                db.ref('correctList/' + p).set(true);
-                if(subWindow) subWindow.showBanner(p + " 正解！", "#2ecc71");
-            } else {
-                play('wrong');
-                db.ref('scores/' + p).transaction(s => (s||0) - 1);
-                db.ref('waits/' + p).set(2);
-                db.ref('wrongList/' + p).set(true);
-                if(subWindow) subWindow.showBanner(p + " ×", "#e74c3c");
-            }
-            // 管理者が判定ボタンを押したときのみ、解答権（winner）を解除しステータスを戻す
-            db.ref().update({ winner: "", status: "active" });
-        });
+        const pt = parseInt(document.getElementById('currentPoint').value) || 1;
+        if(isOK) {
+            play('correct');
+            db.ref('scores/' + p).transaction(s => (s||0) + pt);
+            db.ref('correctList/' + p).set(true);
+        } else {
+            play('wrong');
+            db.ref('scores/' + p).transaction(s => (s||0) - 1);
+            db.ref('waits/' + p).set(2);
+            db.ref('wrongList/' + p).set(true);
+        }
+        // 解放（statusをactiveに戻す）
+        db.ref().update({ winner: "", status: "active" });
     }
 
-    function removeBoard(p) { db.ref('boardAnswers/' + p).remove(); db.ref('wrongList/' + p).remove(); db.ref('correctList/' + p).remove(); }
-    function openType(t) { play('type'); db.ref('status').set('active'); const m = { kanji:/[\u4E00-\u9FFF]/, hira:/[\u3040-\u309F]/, kana:/[\u30A0-\u30FF]/, num:/[0-9０-９]/, alp:/[a-zＡ-Ｚ]/i, sym:/[！？、。：；／＿－＝＋＊＆％＄＃＠！”＃＄％＆’（）＊＋，－．／：；＜＝＞？＠［＼］＾＿｀｛｜｝～「」『』【】（）ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]/ }; Array.from(currentQuiz.q).forEach((c,i) => { if(m[t] && m[t].test(c)) if(!revealed.includes(i)) revealed.push(i); }); sync(); }
-    function openCircleOnly() { db.ref('status').set('active'); Array.from(currentQuiz.q).forEach((c,i) => { if(c === '〇' || c === '○') if(!revealed.includes(i)) revealed.push(i); }); sync(); }
     function resumeQuiz() { db.ref('status').set('active'); if(revealed.length < currentQuiz.q.length) startQuiz(); }
     function revealAnswer() { db.ref('finalReveal').set(true); if(subWindow) subWindow.reveal(currentQuiz.a, currentQuiz.q); }
+    function openType(t) { db.ref('status').set('active'); const m = { kanji:/[\u4E00-\u9FFF]/, hira:/[\u3040-\u309F]/, kana:/[\u30A0-\u30FF]/, num:/[0-9]/, alp:/[a-z]/i, sym:/[！？、。]/ }; Array.from(currentQuiz.q).forEach((c,i) => { if(m[t] && m[t].test(c)) if(!revealed.includes(i)) revealed.push(i); }); sync(); }
+    function openCircleOnly() { db.ref('status').set('active'); Array.from(currentQuiz.q).forEach((c,i) => { if(c === '〇' || c === '○') if(!revealed.includes(i)) revealed.push(i); }); sync(); }
     function openAll() { db.ref('status').set('active'); revealed = Array.from(currentQuiz.q).map((_,i)=>i); sync(); }
-    function resetAll() { if(confirm("完全リセットしますか？")) db.ref().set({ status: "idle", mode: "push", rankVisible: true, isGameSet: false }); }
+    function resetAll() { if(confirm("完全リセットしますか？")) db.ref().set({ status: "idle", mode: "push", rankVisible: true }); }
 
     function initPlayer() {
         const btn = document.getElementById('remote-button'), ni = document.getElementById('p-name'), bUI = document.getElementById('board-input-ui'), sArea = document.getElementById('player-status-area');
@@ -318,56 +317,45 @@
             const d = snap.val() || {}; const name = ni.value.trim();
             const w = (d.waits && d.waits[name]) || 0;
             const isCorrected = d.correctList && d.correctList[name];
-            document.getElementById('p-score').innerText = (d.scores && d.scores[name]) || 0;
-            document.getElementById('p-wait').innerText = w > 0 ? "あと " + w + " 回休み" : "";
             
-            if(d.mode === 'all_board') {
+            if(d.winner === name && name !== "") {
                 btn.style.display = 'none';
-                if(d.status === 'all_writing') {
-                    bUI.style.display = 'block';
-                    sArea.innerHTML = '<div style="background:var(--gold);padding:10px;border-radius:8px;font-weight:bold;">🖋 全員解答！</div>';
-                } else {
-                    bUI.style.display = 'none';
-                    sArea.innerHTML = '<div style="color:#777;">開始を待っています...</div>';
-                }
+                if(d.mode === 'board') { bUI.style.display = 'block'; sArea.innerText = "ボード入力中..."; }
+                else { bUI.style.display = 'none'; sArea.innerText = "口頭解答！"; }
             } else {
-                btn.style.display = 'inline-block';
-                if(d.winner === name && name !== "") {
-                    btn.style.display = 'none';
-                    if(d.mode === 'board') {
-                        bUI.style.display = 'block';
-                        sArea.innerHTML = '<div style="background:#fff3cd;padding:10px;border-radius:8px;border:2px solid #f39c12;font-weight:bold;">✨ ボードに書き込んで！ ✨</div>';
-                    } else {
-                        bUI.style.display = 'none';
-                        sArea.innerHTML = '<div style="background:#fff3cd;padding:10px;border-radius:8px;border:2px solid #f39c12;font-weight:bold;">🎤 口頭で解答！</div>';
-                    }
-                } else {
-                    bUI.style.display = 'inline-block';
-                    bUI.style.display = 'none';
-                    sArea.innerHTML = isCorrected ? '<div style="color:var(--success);font-weight:bold;">✅ 正解済み</div>' : (d.status==='active'?'<div style="color:var(--primary);">解答受付中</div>':'<div style="color:var(--danger);font-weight:bold;">判定中...</div>'); 
-                }
+                btn.style.display = (d.mode === 'all_board') ? 'none' : 'inline-block';
+                bUI.style.display = (d.mode === 'all_board' && d.status === 'all_writing') ? 'block' : 'none';
+                sArea.innerText = d.winner ? (d.winner + " が解答中...") : (isCorrected ? "正解済み" : (d.status==='active'?"受付中":"待機"));
             }
-            // 誰かが解答中（status !== active）は、全プレイヤーのボタンを無効化
-            btn.disabled = !(name && w === 0 && !isCorrected && d.status === 'active');
+            // statusがactiveであり、かつ誰もwinnerでない時のみボタンが有効
+            btn.disabled = !(name && w === 0 && !isCorrected && d.status === 'active' && !d.winner);
         });
     }
 
     function sendBoardAns() {
         const name = document.getElementById('p-name').value.trim(), text = document.getElementById('board-text').value.trim();
         if(!text) return; 
-        // データを送信するだけにする（winnerのリセットは管理者のjudge関数に任せる）
-        db.ref('boardAnswers/' + name).set(text).then(() => {
-            // 入力欄をクリア
-            document.getElementById('board-text').value = "";
-        });
+        db.ref('boardAnswers/' + name).set(text);
+        document.getElementById('board-text').value = "";
     }
     
     function pushBtn() {
         const name = document.getElementById('p-name').value.trim(); if(!name) return alert("名前を入力！");
         db.ref().once('value', snap => {
             const d = snap.val();
-            if(d.winner || (d.correctList && d.correctList[name]) || d.status !== 'active') return;
-            db.ref('winner').transaction(cur => { if(!cur) return name; return; }, (err, ok) => { if(ok) db.ref('status').set('pushed'); });
+            if(d.winner || d.status !== 'active') return; // 二重押し防止
+            // サーバー側で解答権を確定
+            db.ref('winner').transaction(cur => { 
+                if(!cur) return name; 
+                return; 
+            }, (err, ok) => { 
+                if(ok) {
+                    db.ref('status').set('pushed');
+                    // 押した本人のブラウザでも即座に音を鳴らす
+                    const a = new Audio('https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3');
+                    a.play().catch(()=>{});
+                }
+            });
         });
     }
 
@@ -377,38 +365,31 @@
             body{background:#000;color:#fff;font-family:sans-serif;margin:0;overflow:hidden;display:flex;}
             #main-container{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;}
             #rank-side{width:320px;background:#111;border-left:3px solid #333;padding:25px;}
-            #banner{display:none;font-size:5rem;padding:20px;position:absolute;top:0;width:100%;z-index:10;text-align:center;font-weight:bold;}
             #text{font-size:3.5rem;line-height:1.4;width:90%;text-align:center;font-weight:bold;}
             #text span.hidden{visibility:hidden;}
             #ans{display:none;font-size:5rem;color:#f1c40f;border:10px solid #f1c40f;padding:20px;margin-top:25px;text-align:center;font-weight:bold;border-radius:20px;}
             #board-area{display:flex;flex-wrap:wrap;justify-content:center;margin-top:30px;gap:15px;width:100%;}
             .rank-item{margin-bottom:12px;font-size:1.6rem;border-bottom:1px solid #444;padding-bottom:8px;display:flex;justify-content:space-between;}
-            .board-box { background:#222; padding:20px; border-radius:15px; min-width:200px; text-align:center; position:relative; }
-            #result-screen{display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d); z-index:100; overflow-y:auto; padding:50px; box-sizing:border-box;}
-            .res-card { background:rgba(255,255,255,0.1); backdrop-filter:blur(10px); padding:30px; border-radius:20px; margin-bottom:30px; }
-            .hist-item { border-bottom:1px solid rgba(255,255,255,0.2); padding:10px 0; font-size:1.2rem; }
+            .board-box { background:#222; padding:20px; border-radius:15px; min-width:200px; text-align:center; }
         </style></head><body>
-            <div id="main-container"><div id="banner"></div><div id="text"></div><div id="ans"></div><div id="board-area"></div></div>
-            <div id="rank-side"><h2 style="color:#3498db;border-bottom:2px solid #555;">RANKING</h2><div id="rank-list"></div></div>
-            <div id="result-screen"><h1 style="text-align:center; font-size:4rem;">GAME SET</h1><div class="res-card"><h2 style="color:#f1c40f;">🏆 FINAL RANKING</h2><div id="final-rank-list"></div></div><div class="res-card"><h2 style="color:#fff;">📚 QUIZ LOG</h2><div id="final-history-list"></div></div><button onclick="window.closeResult()" style="display:block; margin:50px auto; padding:15px 40px; font-size:1.5rem; cursor:pointer;">閉じる</button></div>
+            <div id="main-container"><div id="text"></div><div id="ans"></div><div id="board-area"></div></div>
+            <div id="rank-side"><h2>RANKING</h2><div id="rank-list"></div></div>
             <script>
-                const sounds = { push: new Audio('buzzer.mp3'), correct: new Audio('correct.mp3'), wrong: new Audio('wrong.mp3'), type: new Audio('type.mp3') };
-                window.play = (s) => { if(sounds[s]) { sounds[s].pause(); sounds[s].currentTime = 0; sounds[s].play().catch(()=>{}); } };
-                window.showBanner = (m,c) => { const b=document.getElementById('banner'); b.innerText=m; b.style.background=c; b.style.display='block'; setTimeout(()=>b.style.display='none',2000); };
+                const audioMap = {
+                    push: new Audio('https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3'),
+                    correct: new Audio('https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/correct.mp3'),
+                    wrong: new Audio('https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/wrong.mp3')
+                };
+                window.play = (s) => { if(audioMap[s]) { audioMap[s].currentTime=0; audioMap[s].play().catch(()=>{}); } };
                 window.reveal = (a,q) => { document.getElementById('ans').innerText=a; document.getElementById('ans').style.display='block'; document.getElementById('text').innerHTML=q; };
                 window.toggleRank = (v) => { document.getElementById('rank-side').style.display = v ? 'block' : 'none'; };
                 window.updateRank = (list) => { document.getElementById('rank-list').innerHTML = list.map(([n,v]) => '<div class="rank-item"><span>'+n+'</span><span>'+v+'pt</span></div>').join(''); };
-                window.showResult = (ranks, history) => { document.getElementById('result-screen').style.display = 'block'; document.getElementById('final-rank-list').innerHTML = ranks.map(([n,v], i) => '<div class="rank-item"><span>'+(i+1)+'位: '+n+'</span><span>'+v+'pt</span></div>').join(''); if(history) { document.getElementById('final-history-list').innerHTML = Object.values(history).reverse().map(h => '<div class="hist-item"><strong>Q:</strong> '+h.q+'<br><strong style="color:#f1c40f;">A:</strong> '+h.a+'</div>').join(''); } };
-                window.hideResult = () => { document.getElementById('result-screen').style.display = 'none'; };
-                window.closeResult = () => { window.opener.db.ref('isGameSet').set(false); };
                 window.syncBoard = (d) => {
                     const area = document.getElementById('board-area');
                     if((d.mode === 'board' || d.mode === 'all_board') && d.boardAnswers) {
                         area.innerHTML = Object.entries(d.boardAnswers).map(([n, ans]) => {
-                            const isW = d.wrongList && d.wrongList[n], isC = d.correctList && d.correctList[n];
-                            const show = d.finalReveal || isW;
-                            return '<div class="board-box" style="border:5px solid '+(isW?'#e74c3c':(isC?'#2ecc71':'#555'))+'">'+
-                                   '<div style="font-size:1.2rem;color:#aaa;">'+n+'</div><div style="font-size:2.8rem;color:#f1c40f;font-weight:bold;">'+(show ? ans : "？？？")+'</div></div>';
+                            const show = d.finalReveal || (d.wrongList && d.wrongList[n]);
+                            return '<div class="board-box"><div style="color:#aaa;">'+n+'</div><div style="font-size:2.8rem;color:#f1c40f;">'+(show ? ans : "？？？")+'</div></div>';
                         }).join('');
                     } else area.innerHTML = "";
                 };
