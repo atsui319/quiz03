@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Final Fixed</title>
+    <title>QuizConsole Pro - Winner Locked</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -139,20 +139,18 @@
     </div>
 </div>
 
-<audio id="local-push-sound" src="https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3"></audio>
-
 <script>
     const firebaseConfig = { databaseURL: "https://realtime-database-c0015-default-rtdb.firebaseio.com/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 音声再生ヘルパー
     function play(s) { 
         if(subWindow && !subWindow.closed) subWindow.play(s);
-        // 管理者画面でも鳴らす
-        const audio = new Audio(s === 'push' ? 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3' : 
-                               s === 'correct' ? 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/correct.mp3' : 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/wrong.mp3');
-        audio.play().catch(()=>{});
+        // 管理者画面でも再生（特にPUSH音の確実な再生のため）
+        const url = s === 'push' ? 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3' : 
+                   s === 'correct' ? 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/correct.mp3' : 
+                   s === 'wrong' ? 'https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/wrong.mp3' : null;
+        if(url) new Audio(url).play().catch(()=>{});
     }
 
     const URLS = {
@@ -195,11 +193,7 @@
             curWinner = d.winner || "";
             document.getElementById('activePlayer').innerText = curWinner ? "🎤 " + curWinner : (d.status === 'all_writing' ? "🖊 全員解答中" : "待機中");
             
-            // ステータスがpushedに変わった瞬間、タイマー停止＆音再生
-            if(d.status === "pushed" && lastStatus !== "pushed") { 
-                clearInterval(timer); 
-                play('push'); 
-            }
+            if(d.status === "pushed" && lastStatus !== "pushed") { clearInterval(timer); play('push'); }
             lastStatus = d.status;
 
             const bArea = document.getElementById('boardResults');
@@ -264,6 +258,7 @@
             Object.entries(w).forEach(([n, v]) => { up[n] = Math.max(0, v - 1); });
             db.ref('waits').update(up);
         });
+        // 問題切り替え時に正解者リスト(correctList)もリセットすることで、次の問題で回答可能にする
         db.ref().update({ status: "waiting", winner: "", correctList: null, wrongList: null, boardAnswers: null, finalReveal: false });
         if(subWindow) subWindow.resetForNext();
         sync(true); renderList();
@@ -293,20 +288,19 @@
         if(isOK) {
             play('correct');
             db.ref('scores/' + p).transaction(s => (s||0) + pt);
-            db.ref('correctList/' + p).set(true);
+            db.ref('correctList/' + p).set(true); // 正解者リストに追加
         } else {
             play('wrong');
             db.ref('scores/' + p).transaction(s => (s||0) - 1);
             db.ref('waits/' + p).set(2);
             db.ref('wrongList/' + p).set(true);
         }
-        // 解放（statusをactiveに戻す）
         db.ref().update({ winner: "", status: "active" });
     }
 
     function resumeQuiz() { db.ref('status').set('active'); if(revealed.length < currentQuiz.q.length) startQuiz(); }
     function revealAnswer() { db.ref('finalReveal').set(true); if(subWindow) subWindow.reveal(currentQuiz.a, currentQuiz.q); }
-    function openType(t) { db.ref('status').set('active'); const m = { kanji:/[\u4E00-\u9FFF]/, hira:/[\u3040-\u309F]/, kana:/[\u30A0-\u30FF]/, num:/[0-9]/, alp:/[a-z]/i, sym:/[！？、。]/ }; Array.from(currentQuiz.q).forEach((c,i) => { if(m[t] && m[t].test(c)) if(!revealed.includes(i)) revealed.push(i); }); sync(); }
+    function openType(t) { db.ref('status').set('active'); const m = { kanji:/[\u4E00-\u9FFF]/, hira:/[\u3040-\u309F]/, kana:/[\u30A0-\u30FF]/, num:/[0-9]/, alp:/[a-z]/i, sym:/[！？、。：；／＿－＝＋＊＆％＄＃＠！”＃＄％＆’（）＊＋，－．／：；＜＝＞？＠［＼］＾＿｀｛｜｝～「」『』【】（）ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]/ }; Array.from(currentQuiz.q).forEach((c,i) => { if(m[t] && m[t].test(c)) if(!revealed.includes(i)) revealed.push(i); }); sync(); }
     function openCircleOnly() { db.ref('status').set('active'); Array.from(currentQuiz.q).forEach((c,i) => { if(c === '〇' || c === '○') if(!revealed.includes(i)) revealed.push(i); }); sync(); }
     function openAll() { db.ref('status').set('active'); revealed = Array.from(currentQuiz.q).map((_,i)=>i); sync(); }
     function resetAll() { if(confirm("完全リセットしますか？")) db.ref().set({ status: "idle", mode: "push", rankVisible: true }); }
@@ -320,14 +314,18 @@
             
             if(d.winner === name && name !== "") {
                 btn.style.display = 'none';
-                if(d.mode === 'board') { bUI.style.display = 'block'; sArea.innerText = "ボード入力中..."; }
-                else { bUI.style.display = 'none'; sArea.innerText = "口頭解答！"; }
+                if(d.mode === 'board') { bUI.style.display = 'block'; sArea.innerHTML = "<b style='color:var(--success)'>解答を送信してください</b>"; }
+                else { bUI.style.display = 'none'; sArea.innerHTML = "<b style='color:var(--danger)'>口頭で解答中！</b>"; }
             } else {
                 btn.style.display = (d.mode === 'all_board') ? 'none' : 'inline-block';
                 bUI.style.display = (d.mode === 'all_board' && d.status === 'all_writing') ? 'block' : 'none';
-                sArea.innerText = d.winner ? (d.winner + " が解答中...") : (isCorrected ? "正解済み" : (d.status==='active'?"受付中":"待機"));
+                // メッセージの出し分け
+                if (isCorrected) sArea.innerHTML = "<span style='color:var(--success)'>✅ 正解！次の問題を待機中</span>";
+                else if (d.winner) sArea.innerHTML = "🎤 " + d.winner + " が解答中...";
+                else if (w > 0) sArea.innerHTML = "<span style='color:var(--danger)'>❌ お休み中 (" + w + ")</span>";
+                else sArea.innerHTML = d.status === 'active' ? "解答受付中" : "待機中";
             }
-            // statusがactiveであり、かつ誰もwinnerでない時のみボタンが有効
+            // ボタン有効条件: 名前あり & 休みなし & その問題で未正解 & ステータスactive & 誰も押していない
             btn.disabled = !(name && w === 0 && !isCorrected && d.status === 'active' && !d.winner);
         });
     }
@@ -343,17 +341,12 @@
         const name = document.getElementById('p-name').value.trim(); if(!name) return alert("名前を入力！");
         db.ref().once('value', snap => {
             const d = snap.val();
-            if(d.winner || d.status !== 'active') return; // 二重押し防止
-            // サーバー側で解答権を確定
-            db.ref('winner').transaction(cur => { 
-                if(!cur) return name; 
-                return; 
-            }, (err, ok) => { 
+            // 既に正解しているか、誰かが押しているか、受付中以外なら何もしない
+            if(d.winner || d.status !== 'active' || (d.correctList && d.correctList[name])) return;
+            db.ref('winner').transaction(cur => { if(!cur) return name; return; }, (err, ok) => { 
                 if(ok) {
                     db.ref('status').set('pushed');
-                    // 押した本人のブラウザでも即座に音を鳴らす
-                    const a = new Audio('https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3');
-                    a.play().catch(()=>{});
+                    new Audio('https://raw.githubusercontent.com/RealTimeQuiz/Assets/main/push.mp3').play().catch(()=>{});
                 }
             });
         });
@@ -388,6 +381,7 @@
                     const area = document.getElementById('board-area');
                     if((d.mode === 'board' || d.mode === 'all_board') && d.boardAnswers) {
                         area.innerHTML = Object.entries(d.boardAnswers).map(([n, ans]) => {
+                            // ボードモード正解でも？？？のままにする仕様を継続
                             const show = d.finalReveal || (d.wrongList && d.wrongList[n]);
                             return '<div class="board-box"><div style="color:#aaa;">'+n+'</div><div style="font-size:2.8rem;color:#f1c40f;">'+(show ? ans : "？？？")+'</div></div>';
                         }).join('');
