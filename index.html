@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Final Board Sync</title>
+    <title>QuizConsole Pro - Scoring Update</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -19,6 +19,7 @@
         .btn-genre { padding: 8px; font-size: 0.75rem; cursor: pointer; flex: 1; border: 1px solid #ccc; background: #fff; }
         .btn-genre.active { background: var(--primary); color: white; }
         
+        /* ボード解答リスト */
         .board-ans-item { background: #f8f9fa; border: 1px solid #ddd; padding: 10px; margin-top: 5px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
         .judge-btns-mini { display: flex; gap: 4px; }
         .judge-btns-mini button { padding: 6px 10px; cursor: pointer; border-radius: 4px; border: none; font-weight: bold; color: white; font-size: 0.8rem; }
@@ -26,11 +27,13 @@
         .btn-ng { background: var(--danger); }
         .btn-del { background: #7f8c8d; }
 
+        /* スコア管理パネル */
+        .score-mgr-item { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .score-ctrl button { padding: 2px 8px; cursor: pointer; font-weight: bold; }
+
         .type-btns button { padding: 8px 10px; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: white; font-weight: bold; font-size: 0.85rem; }
         #remote-button { width: 220px; height: 220px; border-radius: 50%; font-size: 2rem; font-weight: bold; cursor: pointer; border: 10px solid #eee; }
         #remote-button:not(:disabled) { background: var(--danger); color: white; border-color: #c0392b; }
-        
-        /* 解答権獲得時のスタイル */
         .turn-notice { background: #fff3cd; border: 2px solid #f39c12; color: #856404; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; font-size: 1.2rem; }
     </style>
 </head>
@@ -62,6 +65,7 @@
                         <button onclick="toggleRanking()" style="cursor:pointer;">🏆 ランキング切替</button>
                     </div>
                     <div id="activePlayer" style="font-size:2.8rem; font-weight:bold; color:var(--danger); min-height:1.2em;">---</div>
+                    
                     <div id="boardResults" style="display:none; text-align:left; background:white; padding:10px; border-radius:8px; margin:10px 0; max-height:220px; overflow-y:auto; border:1px solid #ddd;"></div>
                     
                     <div style="display:flex; gap:10px;">
@@ -89,7 +93,9 @@
         </div>
 
         <div class="sidebar">
-            <div id="score-list" style="font-size:0.9rem; margin-bottom:15px; border-bottom:2px solid var(--primary); padding-bottom:10px;"></div>
+            <h3 style="margin:0 0 10px 0; font-size:1rem; color:var(--primary);">🏆 スコア管理 (加減調整)</h3>
+            <div id="score-mgr-list" style="margin-bottom:20px; max-height:200px; overflow-y:auto; border:1px solid #ddd; padding:5px; border-radius:8px; background:#fafafa;"></div>
+            
             <div id="genre-tabs" style="display:flex; flex-wrap:wrap; gap:2px; margin-bottom:10px;"></div>
             <input type="text" id="search" placeholder="🔍 問題検索..." style="width:100%; padding:10px; border-radius:4px; border:1px solid #ccc;" oninput="renderList()">
             <div id="quiz-list-area"></div>
@@ -101,12 +107,11 @@
     <div class="container" style="max-width: 500px; margin: 20px auto; text-align: center;">
         <div style="font-size:2.5rem; font-weight:bold;">Score: <span id="p-score">0</span></div>
         <div id="p-wait" style="color:var(--danger); font-weight:bold; height:1.5em; margin:10px;"></div>
-        
-        <div id="player-status-area"></div><input type="text" id="p-name" placeholder="名前を入力" style="width:85%; padding:15px; font-size:1.3rem; text-align:center; border-radius:10px; border:3px solid #ddd; margin-bottom:20px;">
-        
+        <div id="player-status-area"></div>
+        <input type="text" id="p-name" placeholder="名前を入力" style="width:85%; padding:15px; font-size:1.3rem; text-align:center; border-radius:10px; border:3px solid #ddd; margin-bottom:20px;">
         <div id="board-input-ui" style="display:none; margin-bottom:20px;">
             <input type="text" id="board-text" placeholder="ここに答えを入力" style="width:85%; padding:15px; font-size:1.8rem; border:3px solid var(--success); border-radius:10px;"><br><br>
-            <button onclick="sendBoardAns()" style="padding:15px 40px; background:var(--success); color:white; border:none; border-radius:10px; font-weight:bold; font-size:1.2rem;">回答を送信</button>
+            <button onclick="sendBoardAns()" style="padding:15px 40px; background:var(--success); color:white; border:none; border-radius:10px; font-weight:bold;">回答を送信</button>
         </div>
         <button id="remote-button" onclick="pushBtn()">PUSH!</button>
     </div>
@@ -117,13 +122,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const sounds = {
-        push: new Audio('push.mp3'),
-        correct: new Audio('correct.mp3'),
-        wrong: new Audio('wrong.mp3'),
-        type: new Audio('type.mp3')
-    };
-    function play(s) { if(!sounds[s]) return; sounds[s].currentTime = 0; sounds[s].play().catch(()=>{}); }
+    function play(s) { if(subWindow && !subWindow.closed) subWindow.play(s); }
 
     const URLS = {
         ori: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFuFjp8CnBMqfdRPKbQ_FPC6zWwgdQBVdTDsdWTHbBN92vXADxbVTmHdLm_C3Yn-Eeu5ZWm9WXRb0c/pub?output=csv",
@@ -136,6 +135,7 @@
 
     let masterData = { all: [] }, currentPool = [], usedSet = new Set(), currentQuiz = { q: "", a: "" }, revealed = [];
     let timer = null, subWindow = null, curWinner = "", lastStatus = "", rankVisible = true;
+    let correctCount = 0; // ボードモードでの正解者数カウント
 
     function switchPage(role) {
         document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
@@ -166,6 +166,7 @@
             curWinner = d.winner || "";
             document.getElementById('activePlayer').innerText = curWinner || "---";
             rankVisible = d.rankVisible !== false;
+            correctCount = d.correctList ? Object.keys(d.correctList).length : 0;
             
             const bArea = document.getElementById('boardResults');
             if(d.mode === 'board' && d.boardAnswers) {
@@ -189,11 +190,22 @@
         db.ref('scores').on('value', snap => {
             const s = snap.val() || {};
             const sorted = Object.entries(s).sort((a,b)=>b[1]-a[1]);
-            document.getElementById('score-list').innerHTML = "🏆 スコア: " + sorted.map(([n,v]) => `${n}(${v})`).join(' / ');
+            
+            // サイドバーの管理用リスト
+            document.getElementById('score-mgr-list').innerHTML = sorted.map(([n,v]) => `
+                <div class="score-mgr-item">
+                    <span>${n}: <strong>${v}</strong></span>
+                    <div class="score-ctrl">
+                        <button onclick="modifyScore('${n}', 1)">+</button>
+                        <button onclick="modifyScore('${n}', -1)">-</button>
+                    </div>
+                </div>`).join('');
+            
             if(subWindow) subWindow.updateRank(sorted);
         });
     }
 
+    function modifyScore(name, val) { db.ref('scores/' + name).transaction(s => (s||0) + val); }
     function toggleRanking() { rankVisible = !rankVisible; db.ref('rankVisible').set(rankVisible); }
     function setGenre(g) {
         document.querySelectorAll('.btn-genre').forEach(b => b.classList.toggle('active', b.innerText === g || (g === 'all' && b.innerText === '全')));
@@ -249,20 +261,32 @@
     function judge(isOK, targetPlayer = null) {
         const p = targetPlayer || curWinner;
         if(!p) return;
-        if(isOK) {
-            play('correct');
-            db.ref('scores/' + p).transaction(s => (s||0) + 2);
-            db.ref('correctList/' + p).set(true);
-            if(subWindow) subWindow.showBanner(p + " 正解！", "#2ecc71");
-            db.ref().update({ status: "idle", winner: "" });
-        } else {
-            play('wrong');
-            db.ref('scores/' + p).transaction(s => (s||0) - 1);
-            db.ref('waits/' + p).set(2);
-            db.ref('wrongList/' + p).set(true);
-            if(subWindow) subWindow.showBanner(p + " ×", "#e74c3c");
-            db.ref().update({ status: "pushed_done", winner: "" });
-        }
+
+        db.ref('mode').once('value', snap => {
+            const mode = snap.val();
+            if(isOK) {
+                play('correct');
+                // 正解ボーナス計算 (ボードモードの場合のみ3人までボーナス)
+                let bonus = 2;
+                if(mode === 'board') {
+                    if(correctCount === 0) bonus = 3;
+                    else if(correctCount === 1) bonus = 2;
+                    else if(correctCount === 2) bonus = 1;
+                    else { bonus = 1; if(confirm("既に3人正解していますが、判定しますか？") === false) return; }
+                }
+                db.ref('scores/' + p).transaction(s => (s||0) + bonus);
+                db.ref('correctList/' + p).set(true);
+                if(subWindow) subWindow.showBanner(p + " 正解！(+" + bonus + ")", "#2ecc71");
+                if(mode !== 'board') db.ref().update({ status: "idle", winner: "" });
+            } else {
+                play('wrong');
+                db.ref('scores/' + p).transaction(s => (s||0) - 1);
+                db.ref('waits/' + p).set(2);
+                db.ref('wrongList/' + p).set(true);
+                if(subWindow) subWindow.showBanner(p + " ×", "#e74c3c");
+                if(mode !== 'board') db.ref().update({ status: "pushed_done", winner: "" });
+            }
+        });
     }
 
     function removeBoard(p) { db.ref('boardAnswers/' + p).remove(); }
@@ -290,38 +314,20 @@
     function openAll() { db.ref('status').set('active'); revealed = Array.from(currentQuiz.q).map((_,i)=>i); sync(); }
     function resetAll() { if(confirm("完全リセットしますか？")) db.ref().set({ status: "idle", mode: "push", rankVisible: true }); }
 
-    // --- 解答者側ロジック ---
     function initPlayer() {
         const btn = document.getElementById('remote-button');
         const bUI = document.getElementById('board-input-ui');
         const sArea = document.getElementById('player-status-area');
         const ni = document.getElementById('p-name');
-
         db.ref().on('value', snap => {
-            const d = snap.val() || {}; 
-            const name = ni.value.trim();
+            const d = snap.val() || {}; const name = ni.value.trim();
             const w = (d.waits && d.waits[name]) || 0;
-            
             document.getElementById('p-score').innerText = (d.scores && d.scores[name]) || 0;
             document.getElementById('p-wait').innerText = w > 0 ? "あと " + w + " 回休み" : "";
-            
-            // 解答権獲得の判定
             if(d.winner === name && name !== "") {
-                if(d.mode === 'board') {
-                    bUI.style.display = 'block';
-                    btn.style.display = 'none';
-                    sArea.innerHTML = '<div class="turn-notice">✨ 解答権獲得！答えを入力してください ✨</div>';
-                } else {
-                    bUI.style.display = 'none';
-                    btn.style.display = 'inline-block';
-                    sArea.innerHTML = '<div class="turn-notice">✨ 解答権獲得！口頭で答えてください ✨</div>';
-                }
-            } else {
-                bUI.style.display = 'none';
-                btn.style.display = 'inline-block';
-                sArea.innerHTML = '';
-            }
-            
+                if(d.mode === 'board') { bUI.style.display = 'block'; btn.style.display = 'none'; sArea.innerHTML = '<div class="turn-notice">✨ 解答権獲得！答えを入力してください ✨</div>';
+                } else { bUI.style.display = 'none'; btn.style.display = 'inline-block'; sArea.innerHTML = '<div class="turn-notice">✨ 解答権獲得！口頭で答えてください ✨</div>'; }
+            } else { bUI.style.display = 'none'; btn.style.display = 'inline-block'; sArea.innerHTML = ''; }
             btn.disabled = !(name && w === 0 && d.status === 'active' && !d.winner);
         });
     }
@@ -330,7 +336,6 @@
         const name = document.getElementById('p-name').value.trim();
         const text = document.getElementById('board-text').value.trim();
         if(!text) return;
-        // 回答を送信し、ステータスを戻す
         db.ref('boardAnswers/' + name).set(text);
         db.ref().update({ status: "active", winner: "" }); 
         document.getElementById('board-text').value = "";
@@ -339,12 +344,7 @@
     function pushBtn() {
         const name = document.getElementById('p-name').value.trim();
         if(!name) return alert("名前を入力！");
-        db.ref('winner').transaction(cur => {
-            if(!cur) return name;
-            return;
-        }, (err, ok) => {
-            if(ok) db.ref('status').set('pushed');
-        });
+        db.ref('winner').transaction(cur => { if(!cur) return name; return; }, (err, ok) => { if(ok) db.ref('status').set('pushed'); });
     }
 
     function openSubWindow() {
@@ -365,6 +365,11 @@
             </div>
             <div id="rank-side"><h2 style="color:#3498db;border-bottom:2px solid #555;">RANKING</h2><div id="rank-list"></div></div>
             <script>
+                const sounds = {
+                    push: new Audio('buzzer.mp3'), correct: new Audio('correct.mp3'),
+                    wrong: new Audio('wrong.mp3'), type: new Audio('type.mp3')
+                };
+                window.play = (s) => { if(sounds[s]) { sounds[s].currentTime=0; sounds[s].play().catch(()=>{}); } };
                 window.showBanner = (m,c) => { const b=document.getElementById('banner'); b.innerText=m; b.style.background=c; b.style.display='block'; setTimeout(()=>b.style.display='none',2000); };
                 window.reveal = (a,q) => { document.getElementById('ans').innerText=a; document.getElementById('ans').style.display='block'; document.getElementById('text').innerHTML=q; };
                 window.toggleRank = (v) => { document.getElementById('rank-side').style.display = v ? 'block' : 'none'; };
@@ -377,8 +382,8 @@
                             const isCorrect = d.correctList && d.correctList[n];
                             const shouldShow = d.finalReveal || isWrong;
                             return '<div style="background:#222;border:3px solid '+(isWrong?'#e74c3c':(isCorrect?'#2ecc71':'#555'))+';padding:20px;border-radius:15px;min-width:180px;text-align:center;position:relative;">'+
-                                   (isWrong?'<div style="absolute;top:5px;right:10px;color:#e74c3c;">×</div>':'')+
-                                   (isCorrect?'<div style="absolute;top:5px;right:10px;color:#2ecc71;">〇</div>':'')+
+                                   (isWrong?'<div style="position:absolute;top:5px;right:10px;color:#e74c3c;font-weight:bold;">×</div>':'')+
+                                   (isCorrect?'<div style="position:absolute;top:5px;right:10px;color:#2ecc71;font-weight:bold;">〇</div>':'')+
                                    '<div style="font-size:1.2rem;color:#aaa;">'+n+'</div><div style="font-size:2.5rem;color:#f1c40f;font-weight:bold;">'+(shouldShow ? ans : "？？？")+'</div></div>';
                         }).join('');
                     } else { area.innerHTML = ""; }
