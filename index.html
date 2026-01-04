@@ -233,7 +233,21 @@
     // ... (中略：resumeQuiz, revealAnswer, resetAll, lockName, initPlayer等) ...
     function resumeQuiz() { db.ref('status').set('active'); if(revealed.length < currentQuiz.q.length) startQuiz(); }
     function revealAnswer() { db.ref('finalReveal').set(true); if(subWindow) subWindow.reveal(currentQuiz.a, currentQuiz.q); }
-    function resetAll() { if (confirm("完全リセット？")) { history = []; db.ref().set({ status: "idle", mode: "push", rankVisible: true, isGameSet: false, usedSet: [] }); } }
+    function resetAll() {
+  if (confirm("完全リセット？")) {
+    history = [];
+    usedSet.clear();      // ★ これを忘れない
+    db.ref().set({
+      status: "idle",
+      mode: "push",
+      rankVisible: true,
+      isGameSet: false,
+      usedSet: []
+    });
+    renderList();
+  }
+}
+
     function lockName() { const n = document.getElementById('p-name').value.trim(); if(!n) return alert("名前！"); isPlayerLocked = true; document.getElementById('p-name').disabled = true; document.getElementById('p-lock-btn').style.display = 'none'; document.getElementById('locked-name-display').style.display = 'block'; document.getElementById('current-player-name').innerText = n; }
     function initPlayer() { const bUI = document.getElementById('board-input-ui'), sArea = document.getElementById('player-status-area'), goS = document.getElementById('player-gameover'); db.ref().on('value', snap => { if(!isPlayerLocked) return; const d = snap.val() || {}; const name = document.getElementById('p-name').value.trim(); const sn = safeName(name); const score = d.scores?.[sn] || 0; document.getElementById('p-score').innerText = score; if(d.isGameSet) { goS.style.display = 'flex'; document.getElementById('final-p-score').innerText = score; const scoreEntries = Object.entries(d.scores || {}).sort((a,b)=>b[1]-a[1]); const rank = scoreEntries.findIndex(e => e[0] === sn) + 1; document.getElementById('final-rank-text').innerText = scoreEntries.length > 0 ? `あなたは全 ${scoreEntries.length} 人中 ${rank} 位です！` : ""; } else { goS.style.display = 'none'; } const w = (d.waits && d.waits[sn]) || 0; const isCorrected = d.correctList && d.correctList[sn]; const isWinner = (d.winner === name); const showBoard = (d.mode === 'all_board' && d.status !== 'waiting') || (isWinner && (d.mode === 'board' || d.mode === 'all_board')); bUI.style.display = showBoard ? 'block' : 'none'; if(isCorrected) sArea.innerHTML = "✅ 正解！"; else if(isWinner) sArea.innerHTML = "🎤 解答権！"; else if(w > 0) sArea.innerHTML = "❌ お休み (" + w + ")"; else sArea.innerHTML = d.status === 'active' ? "受付中" : "待機中"; document.getElementById('remote-button').disabled = !(w === 0 && d.status === 'active' && !d.winner && !isCorrected && d.mode !== 'all_board'); }); }
     function reportTyping(val) { const name = safeName(document.getElementById('p-name').value.trim()); if(isPlayerLocked) db.ref('typing/'+name).set(val.length > 0); }
@@ -309,3 +323,4 @@
 </script>
 </body>
 </html>
+
