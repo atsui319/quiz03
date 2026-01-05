@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Specialized Edition</title>
+    <title>QuizConsole Pro - Fixed Edition</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -28,7 +28,7 @@
         input, select { background: #0d1117; color: #e5e7eb; border: 1px solid #333; padding: 5px; }
         .board-ans-item { background: #1f2937; color: #e5e7eb; border-left: 5px solid #555; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
         .board-ans-item .controls { display: flex; gap: 5px; }
-        .btn-open { min-width: 40px; background: #4b5563; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; }
+        .btn-open { min-width: 40px; border:none; padding:5px; border-radius:4px; cursor:pointer; font-size:1.1rem; }
         .btn-ok { background: #166534 !important; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         .btn-ng { background: #7f1d1d !important; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
     </style>
@@ -151,7 +151,7 @@
         anime: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTBRf9k4zS7Ht5s7GKejqT2d-cyWbDHd19DwTPmAzoHe40d9nV1cVu-RH565sIq9GbYmEKkzhpBytp/pub?output=csv",
         social: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXVYOqHu_0VRIkiVK0RQO-ZWPZ6pHGqIw5VxBWdOlg3-HbP3q26gM0fVxTndREhjqbaxFzcjeuoMcE/pub?output=csv",
         life: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSTr7JL0lBCMLRBFi-CraPlJxzp4xrGD8RSnc8MSuoV3ORISo0iCFWMmI_FCtDlgkxwPqmv_TwAvufn/pub?output=csv",
-        sport: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJYls3O8_98SKNWqx34c0V5HLIaXdxxA8v4E3c1iwrTFZBL1TSzeem9AbKZKYfMkQEcu7bECcsgVo/pub?output=csv",
+        sport: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJYls3O8_98SKNWqx34c0V5HLIaXdxxA8v4E3c1iwrTFZBL1TSxzeem9AbKZKYfMkQEcu7bECcsgVo/pub?output=csv",
         humanities: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTTUKra8YsSzkZHvm7QRzKeUT6KBi90JHU99B8AK2YiFd2hpxPfKQNCcrUiBVn6BTyPUWqNwJEUVsgD/pub?output=csv"
     };
 
@@ -199,7 +199,7 @@
                 bArea.style.display = 'block';
                 document.getElementById('board-list-inner').innerHTML = Object.entries(d.boardAnswers).map(([n, ans]) => {
                     const sn = safeName(n);
-                    const isOpened = d.revealedBoards?.[sn];
+                    const isOpened = !!(d.revealedBoards && d.revealedBoards[sn]);
                     return `<div class="board-ans-item" style="border-left:5px solid ${d.correctList?.[sn]?'green':(d.wrongList?.[sn]?'red':'#555')}">
                         <span>${hEsc(n)}: ${hEsc(ans)}</span>
                         <div class="controls">
@@ -248,11 +248,14 @@
         clearInterval(timer); currentQuiz = { q, a }; revealed = []; 
         usedSet.add(q); db.ref('usedSet').set([...usedSet]); history.push({q, a}); 
         document.getElementById('admin-q-full').innerText = q; document.getElementById('admin-a-full').innerText = a; 
+        
+        // 次の問題へ行くときにボード回答、判定リスト、個別公開フラグをすべてクリア
         db.ref().update({ 
             status: "waiting", winner: "", correctList: null, wrongList: null, 
             boardAnswers: null, typing: null, finalReveal: false, boardRevealAll: false, 
             revealedBoards: null, isGameSet: false 
         }); 
+        
         if(subWindow) subWindow.resetForNext(); 
         sync(true); renderList(); 
     }
@@ -321,14 +324,9 @@
                 document.getElementById('final-rank-text').innerText = `あなたは ${scoreEntries.length} 人中 ${rank} 位です！`; 
             } else { goS.style.display = 'none'; } 
             const w = (d.waits && d.waits[sn]) || 0; const isCorrected = d.correctList && d.correctList[sn]; const isWinner = (d.winner === name); 
-            
-            // ボード表示条件: (全員ボードモード 且つ 待機中以外) または (自分が早押し勝者 且つ ボードが必要なモード)
             const showBoard = (d.mode === 'all_board' && d.status !== 'waiting') || (isWinner && (d.mode === 'board' || d.mode === 'all_board')); 
             bUI.style.display = showBoard ? 'block' : 'none'; 
-            
             if(isCorrected) sArea.innerHTML = "✅ 正解！"; else if(isWinner) sArea.innerHTML = "🎤 解答権！"; else if(w > 0) sArea.innerHTML = "❌ お休み (" + w + ")"; else sArea.innerHTML = d.status === 'active' ? "受付中" : "待機中"; 
-            
-            // ボタン有効化条件: (休みでない) かつ (受付中) かつ (誰もまだ押していない) かつ (全員ボードモードではない)
             const canPush = (w === 0 && d.status === 'active' && !d.winner && d.mode !== 'all_board');
             document.getElementById('remote-button').disabled = !canPush; 
         }); 
@@ -363,8 +361,8 @@
                 window.play = (s) => { if(sounds[s]) { sounds[s].pause(); sounds[s].currentTime = 0; sounds[s].play().catch(e => 0); } };
                 window.reveal = (a,q) => { document.getElementById('ans').innerText=a; document.getElementById('ans').style.display='block'; document.getElementById('text').innerHTML=q; };
                 window.toggleRank = (v) => { document.getElementById('rank-side').style.opacity = v ? '1' : '0'; };
-                window.updateRank = (list) => { document.getElementById('rank-list').innerHTML = list.map(([n,v]) => '<div style="display:flex;justify-content:space-between;font-size:1.6rem;padding:8px 0;border-bottom:1px solid #333;"><span>'+n+'</span><span>'+v+'pt</span></div>').join(''); };
-                window.showResult = (list, hist) => { document.getElementById('result-overlay').style.display='flex'; document.getElementById('res-list').innerHTML = list.map(([n,v],i) => '<div style="font-size:2rem;margin:10px;padding:15px;background:rgba(255,255,255,0.1);border-radius:10px;border-left:10px solid '+(i===0?'#f1c40f':(i===1?'#bdc3c7':'#cd7f32'))+'">'+(i+1)+'位 '+n+': '+v+'pt</div>').join(''); document.getElementById('hist-inner').innerHTML = hist.map(item => '<div style="margin-bottom:15px;border-bottom:1px solid #444;font-size:0.9rem;">'+item.q+'<br><b style="color:#f1c40f;font-size:1.2rem;">正解: '+item.a+'</b></div>').join(''); };
+                window.updateRank = (list) => { document.getElementById('rank-list').innerHTML = list.map(([n,v]) => '<div style=\"display:flex;justify-content:space-between;font-size:1.6rem;padding:8px 0;border-bottom:1px solid #333;\"><span>'+n+'</span><span>'+v+'pt</span></div>').join(''); };
+                window.showResult = (list, hist) => { document.getElementById('result-overlay').style.display='flex'; document.getElementById('res-list').innerHTML = list.map(([n,v],i) => '<div style=\"font-size:2rem;margin:10px;padding:15px;background:rgba(255,255,255,0.1);border-radius:10px;border-left:10px solid '+(i===0?'#f1c40f':(i===1?'#bdc3c7':'#cd7f32'))+'\">'+(i+1)+'位 '+n+': '+v+'pt</div>').join(''); document.getElementById('hist-inner').innerHTML = hist.map(item => '<div style=\"margin-bottom:15px;border-bottom:1px solid #444;font-size:0.9rem;\">'+item.q+'<br><b style=\"color:#f1c40f;font-size:1.2rem;\">正解: '+item.a+'</b></div>').join(''); };
                 window.hideResult = () => { document.getElementById('result-overlay').style.display='none'; };
                 
                 window.syncBoard = (d) => {
@@ -376,8 +374,7 @@
                         const isTyping = d.typing?.[sn];
                         const isCorrect = d.correctList?.[sn];
                         const isWrong = d.wrongList?.[sn];
-                        // 個別オープンフラグ、または一斉公開、または最終正解公開、または誤答確定の時に中身を出す
-                        const isOpened = d.revealedBoards?.[sn] || d.boardRevealAll || d.finalReveal || isWrong;
+                        const isOpened = !!(d.revealedBoards?.[sn] || d.boardRevealAll || d.finalReveal || isWrong);
                         
                         let content = isOpened ? (ans || \"\") : (ans ? \"？？？\" : (isTyping ? \"<span style='color:#3498db;animation:blink 1s infinite'>🖊 入力中...</span>\" : \"\"));
                         if(!content && !isTyping) return \"\";
