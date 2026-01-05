@@ -135,6 +135,52 @@ input::placeholder { color: #6b7280; }
     border-radius: 5px;
     box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
 }
+/* 管理者：全白・薄灰をダーク化 */
+#admin-ui .container,
+#admin-ui .sidebar-section,
+#boardResults,
+#board-list-inner,
+#quiz-list-area,
+#history-list-area,
+.quiz-item,
+.history-item {
+    background: #0d1117 !important;  /* 暗い背景 */
+    color: #e5e7eb !important;       /* 文字は白 */
+    border: 1px solid #222 !important; /* 枠もダーク */
+}
+
+/* ボードの回答リスト */
+.board-ans-item {
+    background: #1f2937 !important;
+    color: #e5e7eb !important;
+    border-left: 5px solid #555;
+}
+
+/* 正解・全文・速度エリア */
+#admin-q-full { background: #000 !important; color: #fff !important; }
+#admin-a-full { color: #ff6b6b !important; }
+
+/* 速度エリア */
+#admin-ui .container > div[style*="速度"] { background: #0d1117 !important; color: #e5e7eb !important; border: 2px solid #30363d !important; }
+#readSpeed { background: #111827; accent-color: var(--primary); border: 1px solid #30363d; }
+
+/* ボタン */
+button, .btn-genre, .btn-genre.active {
+    background: #1f2937 !important;
+    color: #e5e7eb !important;
+    border: 1px solid #333 !important;
+}
+button:hover, .btn-genre:hover {
+    background: #2b3548 !important;
+}
+
+/* 入力欄 */
+input, select {
+    background: #0d1117 !important;
+    color: #e5e7eb !important;
+    border: 1px solid #333 !important;
+}
+input::placeholder { color: #6b7280 !important; }
 
 
     </style>
@@ -468,6 +514,7 @@ input::placeholder { color: #6b7280; }
 </script>
 </body>
 </html>
+
 
 
 
