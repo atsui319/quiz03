@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Manual Edition</title>
+    <title>QuizConsole Pro - Manual Edition V3.2</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -21,7 +21,8 @@
         #display span.hidden { visibility: hidden; }
         .mgr-item { display: flex; flex-direction: column; padding: 8px; border-bottom: 1px solid #222; font-size: 0.85rem; gap: 5px; }
         .btn-ok { background: #16a34a !important; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; }
-        .btn-ng { background: #dc2626 !important; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; }
+        /* 誤答ボタンを公開ボタン風の見た目に変更 */
+        .btn-ng { background: #4b5563 !important; color: white; border: none; cursor: pointer; border-radius: 8px; font-weight: bold; font-size: 1.2rem !important; }
         .board-mgr-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
         .board-mgr-item.is-correct { background: rgba(34, 197, 94, 0.2); border-left: 5px solid #22c55e; }
         #remote-button { width: 180px; height: 180px; border-radius: 50%; font-size: 2rem; font-weight: bold; cursor: pointer; border: 8px solid #333; }
@@ -61,7 +62,6 @@
                             <option value="all_board">👥 全員ボード</option>
                         </select>
                         配点: <input type="number" id="currentPoint" value="1" style="width:40px;">
-                        休み: <input type="number" id="penaltyCount" value="2" style="width:40px;">
                         <button onclick="toggleRanking()">🏆 スコア表示切替</button>
                     </div>
                     <div id="activePlayer" style="font-size:2.2rem; font-weight:bold; color:var(--danger); min-height:1.2em;">待機中</div>
@@ -69,11 +69,11 @@
                         <div id="board-list-inner"></div>
                     </div>
                     <div style="display:flex; gap:10px; margin-top:10px;">
-                        <button class="btn-ok" style="flex:1; height:70px; font-size:2.5rem;" onclick="judge(true)">⭕</button>
-                        <button class="btn-ng" style="flex:1; height:70px; font-size:2.5rem;" onclick="judge(false)">❌</button>
+                        <button class="btn-ok" style="flex:1.5; height:70px; font-size:2.5rem;" onclick="judge(true)">⭕ 正解</button>
+                        <button class="btn-ng" style="flex:1; height:70px;" onclick="judge(false)">⚠ 誤答(公開)</button>
                     </div>
                     <div style="margin-top:8px; display:flex; gap:5px;">
-                        <button onclick="resumeQuiz()" style="flex:1; padding:10px; font-weight:bold;">▶ 続行</button>
+                        <button onclick="resumeQuiz()" style="flex:1; padding:10px; font-weight:bold;">▶ 読上再開</button>
                         <button onclick="revealAnswer()" style="flex:1; padding:10px; background:#4c1d95; color:white; border:none; border-radius:4px; font-weight:bold;">📢 答え公開</button>
                     </div>
                 </div>
@@ -95,8 +95,8 @@
             </div>
         </div>
         <div class="sidebar">
-            <div class="sidebar-section" style="height:25%">
-                <h3 style="margin:0 0 5px 0; font-size:0.9rem; color:var(--primary);">👤 プレイヤー</h3>
+            <div class="sidebar-section" style="height:35%">
+                <h3 style="margin:0 0 5px 0; font-size:0.9rem; color:var(--primary);">👤 プレイヤー (加減点・休みは手動)</h3>
                 <div id="full-mgr-list" style="flex:1;"></div>
             </div>
             <div class="sidebar-section" style="height:35%">
@@ -169,7 +169,7 @@
                     const sn = safeName(n);
                     const isCorrect = d.correctList?.[sn];
                     let cls = "board-mgr-item" + (isCorrect ? " is-correct" : "");
-                    return `<div class="${cls}"><span><b>${hEsc(n)}</b>: ${hEsc(ans)}</span><div style="display:flex; gap:5px;"><button class="btn-ok" style="padding:5px 12px;" onclick="judge(true, '${n}')">〇</button><button class="btn-ng" style="padding:5px 12px;" onclick="judge(false, '${n}')">×</button></div></div>`;
+                    return `<div class="${cls}"><span><b>${hEsc(n)}</b>: ${hEsc(ans)}</span><div style="display:flex; gap:5px;"><button class="btn-ok" style="padding:5px 12px;" onclick="judge(true, '${n}')">〇</button><button class="btn-ng" style="padding:5px 12px;" onclick="judge(false, '${n}')">⚠ 公開</button></div></div>`;
                 }).join('');
             } else bArea.style.display = 'none';
 
@@ -234,6 +234,7 @@
         if(!historyList.some(h => h.q === q)) { historyList.push({q, a}); renderHistory(); }
         document.getElementById('admin-q-full').innerText = q; 
         document.getElementById('admin-a-full').innerText = a; 
+        // 読み上げ開始時に自動的に休みを1減らす処理は維持（必要なければ削除可能）
         db.ref('waits').once('value', snap => {
             const waits = snap.val() || {};
             const newWaits = {};
@@ -258,13 +259,20 @@
     function openAll() { revealed = Array.from(currentQuiz.q).map((_, i) => i); sync(); }
 
     function judge(isOK, targetPlayer = null) {
-        if(isOK) requestSound('correct'); // 誤答時は音を鳴らさない
+        if(isOK) requestSound('correct'); 
+        // 誤答時のサウンド再生はなし
         db.ref().once('value', snap => {
             const d = snap.val(); const p = targetPlayer || d.winner; if(!p) return;
             const sn = safeName(p); const pt = parseInt(document.getElementById('currentPoint').value) || 1;
-            const penalty = parseInt(document.getElementById('penaltyCount').value) || 0;
-            if(isOK) { db.ref('scores/'+sn).transaction(s => (s||0)+pt); db.ref('correctList/'+sn).set(true); }
-            else { db.ref('scores/'+sn).transaction(s => (s||0)-1); db.ref('waits/'+sn).set(penalty); db.ref('wrongList/'+sn).set(true); }
+            
+            if(isOK) { 
+                db.ref('scores/'+sn).transaction(s => (s||0)+pt); 
+                db.ref('correctList/'+sn).set(true); 
+            } else { 
+                // 誤答時は状態記録(wrongList)のみ行い、公開フラグを立てる
+                db.ref('wrongList/'+sn).set(true); 
+                // 自動減点・休み付与のコードを削除しました
+            }
             if(d.mode !== 'all_board' && !targetPlayer) { db.ref().update({ winner: "", status: "active" }); }
         });
     }
@@ -357,7 +365,6 @@
                         const show = d.finalReveal || isWrong;
                         let content = show ? (ans || \"\") : (ans ? \"？？？\" : (isTyping ? \"<span style='color:#3498db;animation:blink 1s infinite'>🖊 入力中...</span>\" : \"\"));
                         if(!content && !isTyping) return \"\";
-                        // 誤答時の「wrong」クラス付与を削除
                         return '<div class=\"board-box '+(isCorrect?'correct':'')+'\"><small>'+n+'</small><div style=\"font-size:2.2rem;font-weight:bold;color:#f1c40f;min-height:1.2em;\">'+content+'</div></div>';
                     }).join('');
                 };
