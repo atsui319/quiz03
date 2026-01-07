@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Streamlined V3.3</title>
+    <title>QuizConsole Pro - Individual</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -10,32 +10,35 @@
         body { font-family: sans-serif; background: var(--bg); color: #e5e7eb; margin: 0; padding: 10px; height: 100vh; overflow: hidden; box-sizing: border-box; }
         .page-section { display: none; height: 100%; } 
         #role-ui { display: block; }
-        .container { background: #161a22; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); border: 1px solid #2a2f3a; }
+        .container { background: #161a22; padding: 20px; border-radius: 12px; border: 1px solid #2a2f3a; }
         .admin-flex { display: flex; gap: 15px; height: calc(100vh - 20px); max-width: 1600px; margin: 0 auto; }
         
-        .main-panel { flex: 1.2; display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
-        .control-panel { background: #1e293b; padding: 20px; border-radius: 12px; border: 2px solid #334155; display: flex; flex-direction: column; }
+        .main-panel { flex: 1.3; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+        .control-panel { background: #1e293b; padding: 15px; border-radius: 12px; border: 2px solid #334155; }
         
-        .sidebar { flex: 0.8; display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
-        .sidebar-section { background: #161a22; padding: 15px; border-radius: 12px; border: 1px solid #2a2f3a; display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar { flex: 0.7; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+        .sidebar-section { background: #161a22; padding: 12px; border-radius: 12px; border: 1px solid #2a2f3a; display: flex; flex-direction: column; overflow: hidden; }
 
-        #display { font-size: 1.8rem; background: #000; color: white; padding: 15px; border-radius: 8px; min-height: 80px; border: 4px solid #333; margin: 10px 0; line-height: 1.3; white-space: pre-wrap; }
+        #display { font-size: 1.6rem; background: #000; color: white; padding: 15px; border-radius: 8px; min-height: 60px; border: 3px solid #333; margin: 10px 0; line-height: 1.3; white-space: pre-wrap; }
         
-        /* 回答リストエリア（復活） */
-        #boardResults { background: #0d1117; border: 2px solid #334155; border-radius: 8px; margin-bottom: 10px; flex: 1; overflow-y: auto; min-height: 150px; }
-        .board-mgr-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
-        .board-mgr-item.is-correct { background: rgba(34, 197, 94, 0.2); border-left: 5px solid #22c55e; }
+        /* 送信された回答リスト */
+        #boardResults { background: #0d1117; border: 2px solid #334155; border-radius: 8px; flex: 1; overflow-y: auto; margin-bottom: 10px; }
+        .board-mgr-item { padding: 12px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .board-mgr-item.is-correct { background: rgba(46, 204, 113, 0.2); border-left: 6px solid #2ecc71; }
+        .board-mgr-item.is-wrong { background: rgba(100, 100, 100, 0.2); border-left: 6px solid #666; }
 
-        .stock-area { flex: 1; display: flex; flex-direction: column; background: #161a22; border-radius: 12px; border: 1px solid #2a2f3a; padding: 15px; overflow: hidden; }
-        #quiz-list-area { flex: 1; overflow-y: auto; background: #0d1117; border-radius: 8px; border: 1px solid #222; margin-top: 10px; }
+        /* 問題作成・ストック */
+        .stock-area { flex: 1.2; display: flex; flex-direction: column; background: #161a22; border-radius: 12px; border: 1px solid #2a2f3a; padding: 15px; overflow: hidden; }
+        #quiz-list-area { flex: 1; overflow-y: auto; background: #0d1117; border-radius: 8px; border: 1px solid #222; margin-top: 8px; }
 
-        .btn-ok { background: #16a34a !important; color: white; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; }
-        .btn-ng { background: #4b5563 !important; color: white; border: none; cursor: pointer; border-radius: 6px; font-weight: bold; }
-        .mgr-item { display: flex; flex-direction: column; padding: 10px; border-bottom: 1px solid #222; gap: 5px; }
-        .stock-item { padding: 12px; border-bottom: 1px solid #333; cursor: pointer; }
+        .btn-indiv-ok { background: #16a34a; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-indiv-ng { background: #4b5563; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         
-        textarea#manual-q { width: 100%; height: 80px; font-size: 1.1rem; background: #0d1117; color: #fff; border: 1px solid #333; border-radius: 8px; padding: 10px; box-sizing: border-box; resize: none; }
-        input#manual-a { width: 100%; font-size: 1.1rem; background: #0d1117; color: #fff; border: 1px solid #333; border-radius: 8px; padding: 10px; margin-bottom: 8px; box-sizing: border-box; }
+        .mgr-item { display: flex; flex-direction: column; padding: 8px; border-bottom: 1px solid #222; font-size: 0.9rem; }
+        .stock-item { padding: 10px; border-bottom: 1px solid #333; cursor: pointer; }
+        
+        textarea#manual-q { width: 100%; height: 60px; font-size: 1rem; background: #0d1117; color: #fff; border: 1px solid #333; border-radius: 6px; padding: 8px; box-sizing: border-box; resize: none; }
+        input#manual-a { width: 100%; font-size: 1rem; background: #0d1117; color: #fff; border: 1px solid #333; border-radius: 6px; padding: 8px; margin-bottom: 6px; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -51,44 +54,35 @@
 <div id="admin-ui" class="page-section">
     <div class="admin-flex">
         <div class="main-panel">
-            <div class="control-panel" style="flex: 1.5;">
+            <div class="control-panel">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="display:flex; gap:8px;">
-                        <button onclick="openSubWindow()" style="background:#4c1d95; color:white; padding:8px 15px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">📺 視聴者画面</button>
-                        <select id="gameMode" onchange="db.ref('mode').set(this.value)">
-                            <option value="all_board">👥 全員ボード</option>
-                            <option value="push">⚡ 早押し</option>
-                            <option value="board">📝 1人ボード</option>
-                        </select>
+                    <button onclick="openSubWindow()" style="background:#4c1d95; color:white; padding:8px 15px; border-radius:6px; border:none; cursor:pointer; font-weight:bold;">📺 視聴者画面表示</button>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        モード: <select id="gameMode" onchange="db.ref('mode').set(this.value)"><option value="all_board">全員ボード</option><option value="push">早押し</option></select>
+                        配点: <input type="number" id="currentPoint" value="1" style="width:40px;">
                     </div>
-                    <div style="font-size:0.9rem;">配点: <input type="number" id="currentPoint" value="1" style="width:40px;"></div>
                 </div>
 
-                <div id="display">待機中...</div>
+                <div id="display">問題をセットしてください</div>
 
-                <div id="boardResults">
-                    <div style="padding:5px; background:#222; font-size:0.8rem; color:#888; text-align:center;">送信された回答</div>
-                    <div id="board-list-inner"></div>
-                </div>
-
-                <div style="display:flex; gap:8px; margin-bottom:10px;">
-                    <button onclick="startQuizFull()" style="flex:2; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-size:1.2rem; font-weight:bold; cursor:pointer;">📢 全員回答開始 (全文表示)</button>
-                    <button onclick="revealAnswer()" style="flex:1; padding:15px; background:#4c1d95; color:white; border:none; border-radius:8px; font-weight:bold;">答え公開</button>
-                </div>
-
-                <div style="display:flex; gap:8px;">
-                    <button class="btn-ok" style="flex:1.5; height:60px; font-size:1.5rem;" onclick="judge(true)">⭕ 正解</button>
-                    <button class="btn-ng" style="flex:1; height:60px;" onclick="judge(false)">⚠ 誤答(公開)</button>
+                <div style="display:flex; gap:8px; margin-top:5px;">
+                    <button onclick="startQuizFull()" style="flex:2; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-size:1.1rem; font-weight:bold; cursor:pointer;">📢 全員回答開始 (全文表示)</button>
+                    <button onclick="revealAnswer()" style="flex:1; padding:15px; background:#4c1d95; color:white; border:none; border-radius:8px; font-weight:bold;">正解を公開</button>
                 </div>
             </div>
 
+            <div id="boardResults">
+                <div style="padding:5px; background:#222; font-size:0.8rem; color:#888; text-align:center;">送信された回答（ここで個別に判定）</div>
+                <div id="board-list-inner"></div>
+            </div>
+
             <div class="stock-area">
-                <h3 style="margin:0 0 8px 0; font-size:1rem;">✍️ 問題作成・ストック</h3>
-                <input type="text" id="manual-a" placeholder="答えを入力">
-                <textarea id="manual-q" placeholder="問題文を入力"></textarea>
+                <h3 style="margin:0 0 8px 0; font-size:0.9rem;">✍️ 問題作成・ストック</h3>
+                <input type="text" id="manual-a" placeholder="答え">
+                <textarea id="manual-q" placeholder="問題文"></textarea>
                 <div style="display:flex; gap:8px; margin-top:8px;">
-                    <button onclick="addStock()" style="flex:1; padding:12px; background:#374151; color:white; border:none; border-radius:6px;">ストックに追加</button>
-                    <button onclick="applyManual()" style="flex:1; padding:12px; background:var(--success); color:white; border:none; border-radius:6px; font-weight:bold;">即時出題</button>
+                    <button onclick="addStock()" style="flex:1; padding:10px; background:#374151; color:white; border:none; border-radius:6px;">ストックへ</button>
+                    <button onclick="applyManual()" style="flex:1; padding:10px; background:var(--success); color:white; border:none; border-radius:6px; font-weight:bold;">即時出題</button>
                 </div>
                 <div id="quiz-list-area"></div>
             </div>
@@ -96,29 +90,29 @@
 
         <div class="sidebar">
             <div class="sidebar-section" style="flex: 1.2;">
-                <h3 style="margin:0 0 10px 0; font-size:1rem; color:var(--primary);">👤 プレイヤー (加減点・休みは手動)</h3>
+                <h3 style="margin:0 0 10px 0; font-size:0.9rem; color:var(--primary);">👤 プレイヤー (加減点・休みは手動)</h3>
                 <div id="full-mgr-list" style="overflow-y:auto; flex:1;"></div>
             </div>
             <div class="sidebar-section" style="flex: 0.8;">
-                <h3 style="margin:0 0 10px 0; font-size:1rem; color:var(--test);">📜 出題履歴</h3>
+                <h3 style="margin:0 0 10px 0; font-size:0.9rem; color:var(--test);">📜 出題履歴</h3>
                 <div id="history-list" style="overflow-y:auto; flex:1;"></div>
             </div>
-            <button onclick="resetAll()" style="background:#444; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-size:0.8rem;">🚮 全データリセット</button>
+            <button onclick="resetAll()" style="background:#444; color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-size:0.7rem;">🚮 全リセット</button>
         </div>
     </div>
 </div>
 
 <div id="player-ui" class="page-section">
     <div class="container" style="max-width: 500px; margin: 20px auto; text-align: center;">
-        <div style="font-size:2.5rem; font-weight:bold; color:#fff;">Score: <span id="p-score">0</span></div>
-        <div id="player-status-area" style="margin:15px; min-height:40px; font-weight:bold; color:var(--danger);"></div>
+        <div style="font-size:2rem; font-weight:bold; color:#fff;">Score: <span id="p-score">0</span></div>
+        <div id="player-status-area" style="margin:10px; min-height:30px; font-weight:bold; color:var(--danger);"></div>
         <div id="name-input-area">
-            <input type="text" id="p-name" placeholder="名前を入力" style="width:85%; padding:15px; font-size:1.3rem; border-radius:10px; border:3px solid #333; margin-bottom:10px; text-align:center; background:#0d1117; color:#fff;">
-            <button id="p-lock-btn" onclick="lockName()" style="width:85%; padding:10px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold;">参加する</button>
+            <input type="text" id="p-name" placeholder="名前" style="width:80%; padding:12px; font-size:1.2rem; border-radius:8px; border:2px solid #333; margin-bottom:10px; text-align:center; background:#0d1117; color:#fff;">
+            <button id="p-lock-btn" onclick="lockName()" style="width:80%; padding:10px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold;">参加</button>
         </div>
-        <div id="locked-name-display" style="display:none; font-size:1.5rem; margin-bottom:20px; color:#aaa;">参加者: <strong id="current-player-name" style="color:#fff;"></strong></div>
-        <div id="board-input-ui" style="display:none; margin-bottom:20px; background:#064e3b; padding:20px; border-radius:15px; border:2px solid var(--success);"><input type="text" id="board-text" placeholder="答えを入力" oninput="reportTyping(this.value)" style="width:90%; padding:15px; font-size:1.8rem; border-radius:10px; border:2px solid var(--success); background:#000; color:#fff;"><br><br><button onclick="sendBoardAns()" style="padding:15px 40px; background:var(--success); color:white; border:none; border-radius:10px; font-weight:bold; font-size:1.2rem;">回答送信</button></div>
-        <button id="remote-button" style="width:180px; height:180px; border-radius:50%; font-size:2rem; font-weight:bold; cursor:pointer; border:8px solid #333;" onclick="pushBtn()">PUSH!</button>
+        <div id="locked-name-display" style="display:none; font-size:1.2rem; margin-bottom:15px; color:#aaa;"><strong id="current-player-name" style="color:#fff;"></strong></div>
+        <div id="board-input-ui" style="display:none; margin-bottom:20px; background:#064e3b; padding:15px; border-radius:12px; border:2px solid var(--success);"><input type="text" id="board-text" placeholder="回答を入力" oninput="reportTyping(this.value)" style="width:90%; padding:12px; font-size:1.5rem; border-radius:8px; border:2px solid var(--success); background:#000; color:#fff;"><br><br><button onclick="sendBoardAns()" style="padding:12px 30px; background:var(--success); color:white; border:none; border-radius:8px; font-weight:bold; font-size:1.1rem;">送信</button></div>
+        <button id="remote-button" style="width:150px; height:150px; border-radius:50%; font-size:1.8rem; font-weight:bold; cursor:pointer; border:6px solid #333;" onclick="pushBtn()">PUSH</button>
     </div>
 </div>
 
@@ -140,33 +134,31 @@
             const d = snap.val() || {};
             const scoreEntries = Object.entries(d.scores || {}).sort((a,b)=>b[1]-a[1]);
             
-            // プレイヤー管理リスト更新
+            // プレイヤー管理
             document.getElementById('full-mgr-list').innerHTML = scoreEntries.map(([n,v]) => {
                 const w = d.waits?.[n] || 0;
                 return `<div class="mgr-item"><div style="display:flex;justify-content:space-between"><span><b>${hEsc(n)}</b>: ${v}pt (休${w})</span><button onclick="removePlayer('${n}')">🗑️</button></div><div><button onclick="modifyScore('${n}',1)">+1</button><button onclick="modifyScore('${n}',-1)">-1</button> | <button onclick="modifyWait('${n}',1)">休+</button><button onclick="modifyWait('${n}',-1)">休-</button></div></div>`;
             }).join('');
 
-            // 管理画面用 回答リスト更新（復活部分）
+            // 個別回答リスト（判定ボタン付き）
             if (d.boardAnswers) {
                 document.getElementById('board-list-inner').innerHTML = Object.entries(d.boardAnswers).map(([n, ans]) => {
                     const sn = safeName(n);
                     const isCorrect = d.correctList?.[sn];
-                    let cls = "board-mgr-item" + (isCorrect ? " is-correct" : "");
-                    return `<div class="${cls}"><span><b>${hEsc(n)}</b>: ${hEsc(ans)}</span><div style="display:flex; gap:5px;"><button class="btn-ok" style="padding:5px 10px;" onclick="judge(true, '${n}')">⭕</button><button class="btn-ng" style="padding:5px 10px;" onclick="judge(false, '${n}')">⚠ 公開</button></div></div>`;
+                    const isWrong = d.wrongList?.[sn];
+                    let cls = "board-mgr-item" + (isCorrect ? " is-correct" : (isWrong ? " is-wrong" : ""));
+                    return `<div class="${cls}"><span><b>${hEsc(n)}</b>: ${hEsc(ans)}</span><div style="display:flex; gap:5px;"><button class="btn-indiv-ok" onclick="judge(true, '${n}')">⭕</button><button class="btn-indiv-ng" onclick="judge(false, '${n}')">⚠ 公開</button></div></div>`;
                 }).join('');
-            } else {
-                document.getElementById('board-list-inner').innerHTML = "";
-            }
+            } else { document.getElementById('board-list-inner').innerHTML = ""; }
             
             if(subWindow) { subWindow.syncBoard(d); subWindow.updateRank(scoreEntries); }
         });
     }
 
-    // --- 管理機能 ---
     function addStock() {
         const q = document.getElementById('manual-q').value.trim();
         const a = document.getElementById('manual-a').value.trim();
-        if(!q || !a) return alert("問題と答えを入力してください");
+        if(!q || !a) return;
         stockData.push({q, a});
         document.getElementById('manual-q').value = ""; document.getElementById('manual-a').value = "";
         renderStock();
@@ -174,27 +166,14 @@
     function applyManual() {
         const q = document.getElementById('manual-q').value.trim();
         const a = document.getElementById('manual-a').value.trim();
-        if(!q || !a) return alert("問題と答えを入力してください");
+        if(!q || !a) return;
         applyQuiz(q, a);
         document.getElementById('manual-q').value = ""; document.getElementById('manual-a').value = "";
     }
     function renderStock() {
-        document.getElementById('quiz-list-area').innerHTML = stockData.map((i, idx) => `
-            <div class="stock-item" onclick="applyQuizFromStock(${idx})">
-                <div style="display:flex; justify-content:space-between">
-                    <strong style="color:var(--success);">${hEsc(i.a)}</strong>
-                    <button onclick="event.stopPropagation(); stockData.splice(${idx},1); renderStock();">🗑️</button>
-                </div>
-                <div style="font-size:0.85rem; color:#ccc; margin-top:4px;">${hEsc(i.q)}</div>
-            </div>
-        `).join('');
+        document.getElementById('quiz-list-area').innerHTML = stockData.map((i, idx) => `<div class="stock-item" onclick="applyQuizFromStock(${idx})"><div style="display:flex; justify-content:space-between"><strong style="color:var(--success);">${hEsc(i.a)}</strong><button onclick="event.stopPropagation(); stockData.splice(${idx},1); renderStock();">🗑️</button></div><div style="font-size:0.8rem; color:#ccc; margin-top:3px;">${hEsc(i.q)}</div></div>`).join('');
     }
-    function applyQuizFromStock(idx) {
-        const item = stockData[idx];
-        applyQuiz(item.q, item.a);
-        stockData.splice(idx, 1);
-        renderStock();
-    }
+    function applyQuizFromStock(idx) { applyQuiz(stockData[idx].q, stockData[idx].a); stockData.splice(idx, 1); renderStock(); }
 
     function applyQuiz(q, a) { 
         currentQuiz = { q, a }; 
@@ -210,30 +189,24 @@
         if(subWindow) subWindow.document.getElementById('text').innerText = currentQuiz.q;
     }
 
-    function judge(isOK, targetPlayer = null) {
+    function judge(isOK, pName) {
         if(isOK) requestSound('correct');
-        db.ref().once('value', snap => {
-            const d = snap.val(); 
-            const p = targetPlayer || d.winner;
-            if(!p) return;
-            const sn = safeName(p);
-            if(isOK) { 
-                const pt = parseInt(document.getElementById('currentPoint').value) || 1;
-                db.ref('scores/'+sn).transaction(s => (s||0)+pt); 
-                db.ref('correctList/'+sn).set(true); 
-            } else { 
-                db.ref('wrongList/'+sn).set(true); 
-            }
-            if(d.mode !== 'all_board' && !targetPlayer) db.ref().update({ winner: "", status: "active" });
-        });
+        const sn = safeName(pName);
+        if(isOK) { 
+            const pt = parseInt(document.getElementById('currentPoint').value) || 1;
+            db.ref('scores/'+sn).transaction(s => (s||0)+pt); 
+            db.ref('correctList/'+sn).set(true); 
+        } else { 
+            db.ref('wrongList/'+sn).set(true); 
+        }
     }
 
     function revealAnswer() { db.ref('finalReveal').set(true); if(subWindow) subWindow.reveal(currentQuiz.a, currentQuiz.q); }
     function modifyScore(n, v) { db.ref('scores/'+safeName(n)).transaction(s => (s||0)+v); }
     function modifyWait(n, v) { db.ref('waits/'+safeName(n)).transaction(w => Math.max(0, (w||0)+v)); }
-    function removePlayer(n) { if(confirm(`${n} を削除しますか？`)) db.ref('scores/' + safeName(n)).remove(); }
+    function removePlayer(n) { if(confirm(`${n} を削除？`)) db.ref('scores/' + safeName(n)).remove(); }
     function renderHistory() { document.getElementById('history-list').innerHTML = historyList.slice().reverse().map(h => `<div class="mgr-item" onclick="applyQuiz('${hEsc(h.q.replace(/'/g,"\\'"))}', '${hEsc(h.a.replace(/'/g,"\\'"))}')" style="cursor:pointer;"><strong>${hEsc(h.a)}</strong><small>${hEsc(h.q)}</small></div>`).join(''); }
-    function resetAll() { if (confirm("すべてリセットしますか？")) db.ref().set({ status: "idle", mode: "all_board", rankVisible: true }); }
+    function resetAll() { if (confirm("リセット？")) db.ref().set({ status: "idle", mode: "all_board", rankVisible: true }); }
 
     // --- Player Logic ---
     function lockName() { const n = document.getElementById('p-name').value.trim(); if(!n) return; isPlayerLocked = true; document.getElementById('p-name').disabled = true; document.getElementById('p-lock-btn').style.display = 'none'; document.getElementById('locked-name-display').style.display = 'block'; document.getElementById('current-player-name').innerText = n; }
@@ -242,8 +215,8 @@
             if(!isPlayerLocked) return; 
             const d = snap.val() || {}; const name = document.getElementById('p-name').value.trim(); const sn = safeName(name);
             document.getElementById('p-score').innerText = d.scores?.[sn] || 0; 
-            const w = (d.waits && d.waits[sn]) || 0; const isWinner = (d.winner === name);
-            const showBoard = (d.mode === 'all_board' && d.status !== 'waiting') || (isWinner && (d.mode === 'board' || d.mode === 'all_board')); 
+            const w = (d.waits && d.waits[sn]) || 0;
+            const showBoard = (d.mode === 'all_board' && d.status !== 'waiting') || (d.winner === name); 
             document.getElementById('board-input-ui').style.display = showBoard ? 'block' : 'none'; 
             document.getElementById('remote-button').disabled = !(w === 0 && d.status === 'active' && !d.winner && d.mode !== 'all_board');
         }); 
