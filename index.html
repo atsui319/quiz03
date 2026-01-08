@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Final Edition</title>
+    <title>QuizConsole Pro - Board Only</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -19,20 +19,20 @@
         .sidebar { flex: 0.7; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
         .sidebar-section { background: #161a22; padding: 12px; border-radius: 12px; border: 1px solid #2a2f3a; display: flex; flex-direction: column; overflow: hidden; }
 
-        #display { font-size: 1.6rem; background: #000; color: white; padding: 15px; border-radius: 8px; min-height: 60px; border: 3px solid #333; margin: 10px 0; line-height: 1.3; white-space: pre-wrap; }
+        #display { font-size: 1.6rem; background: #000; color: white; padding: 12px; border-radius: 8px; min-height: 50px; border: 3px solid #333; margin: 8px 0; line-height: 1.2; white-space: pre-wrap; }
         
-        #boardResults { background: #0d1117; border: 2px solid #334155; border-radius: 8px; flex: 1; overflow-y: auto; margin-bottom: 10px; }
+        #boardResults { background: #0d1117; border: 2px solid #334155; border-radius: 8px; flex: 1; overflow-y: auto; margin-bottom: 5px; }
         .board-mgr-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
         .board-mgr-item.is-correct { background: rgba(46, 204, 113, 0.2); border-left: 6px solid #2ecc71; }
         .board-mgr-item.is-wrong { background: rgba(100, 100, 100, 0.2); border-left: 6px solid #666; }
+        .board-mgr-item.is-focus { background: rgba(74, 163, 255, 0.2); border-left: 6px solid var(--primary); }
+
+        .btn-indiv-ok { background: #16a34a; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-indiv-ng { background: #4b5563; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-focus { background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
         .stock-area { flex: 1.2; display: flex; flex-direction: column; background: #161a22; border-radius: 12px; border: 1px solid #2a2f3a; padding: 15px; overflow: hidden; }
         #quiz-list-area { flex: 1; overflow-y: auto; background: #0d1117; border-radius: 8px; border: 1px solid #222; margin-top: 8px; }
-
-        .btn-indiv-ok { background: #16a34a; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn-indiv-ng { background: #4b5563; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        
-        .mgr-item { display: flex; flex-direction: column; padding: 8px; border-bottom: 1px solid #222; font-size: 0.9rem; }
         .stock-item { padding: 10px; border-bottom: 1px solid #333; cursor: pointer; }
         
         textarea#manual-q { width: 100%; height: 60px; font-size: 1rem; background: #0d1117; color: #fff; border: 1px solid #333; border-radius: 6px; padding: 8px; box-sizing: border-box; resize: none; }
@@ -43,7 +43,7 @@
 
 <div id="role-ui" class="page-section">
     <div class="container" style="max-width: 400px; text-align: center; margin: 100px auto;">
-        <h2>QuizConsole Pro</h2>
+        <h2>QuizConsole Board Pro</h2>
         <button style="width:100%; padding:20px; margin-bottom:15px;" onclick="switchPage('admin')">💻 管理者コンソール</button>
         <button style="width:100%; padding:20px; background:var(--test); color:white; border:none; border-radius:8px;" onclick="switchPage('player')">📱 回答者端末</button>
     </div>
@@ -59,26 +59,22 @@
                         <button onclick="toggleRanking()" style="background:#2d3748; color:white; padding:8px 15px; border-radius:6px; border:none; cursor:pointer;">👁 スコア表示切替</button>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center;">
-                        モード: <select id="gameMode" onchange="db.ref('mode').set(this.value)"><option value="all_board">全員ボード</option><option value="push">早押し</option></select>
                         配点: <input type="number" id="currentPoint" value="1" style="width:40px;">
                     </div>
                 </div>
-
                 <div id="display">問題をセットしてください</div>
-
                 <div style="display:flex; gap:8px; margin-top:5px;">
-                    <button onclick="startQuizFull()" style="flex:2; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-size:1.1rem; font-weight:bold; cursor:pointer;">📢 全員回答開始 (全文表示)</button>
-                    <button onclick="revealAnswer()" style="flex:1; padding:15px; background:#4c1d95; color:white; border:none; border-radius:8px; font-weight:bold;">正解を公開</button>
+                    <button onclick="startQuizFull()" style="flex:2; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-size:1.1rem; font-weight:bold; cursor:pointer;">📢 全員回答開始</button>
+                    <button onclick="revealAnswer()" style="flex:1; padding:15px; background:#4c1d95; color:white; border:none; border-radius:8px; font-weight:bold;">正解公開</button>
                 </div>
             </div>
 
             <div id="boardResults">
-                <div style="padding:5px; background:#222; font-size:0.8rem; color:#888; text-align:center;">送信された回答（ここで個別に判定）</div>
+                <div style="padding:5px; background:#222; font-size:0.8rem; color:#888; text-align:center;">送信された回答（🔍ピックアップ / ⭕判定）</div>
                 <div id="board-list-inner"></div>
             </div>
 
             <div class="stock-area">
-                <h3 style="margin:0 0 8px 0; font-size:0.9rem;">✍️ 問題作成・ストック</h3>
                 <input type="text" id="manual-a" placeholder="答え">
                 <textarea id="manual-q" placeholder="問題文"></textarea>
                 <div style="display:flex; gap:8px; margin-top:8px;">
@@ -91,11 +87,11 @@
 
         <div class="sidebar">
             <div class="sidebar-section" style="flex: 1.2;">
-                <h3 style="margin:0 0 10px 0; font-size:0.9rem; color:var(--primary);">👤 プレイヤー (加減点・休みは手動)</h3>
+                <h3 style="margin:0 0 5px 0; font-size:0.9rem; color:var(--primary);">👤 プレイヤー</h3>
                 <div id="full-mgr-list" style="overflow-y:auto; flex:1;"></div>
             </div>
             <div class="sidebar-section" style="flex: 0.8;">
-                <h3 style="margin:0 0 10px 0; font-size:0.9rem; color:var(--test);">📜 出題履歴</h3>
+                <h3 style="margin:0 0 5px 0; font-size:0.9rem; color:var(--test);">📜 履歴</h3>
                 <div id="history-list" style="overflow-y:auto; flex:1;"></div>
             </div>
             <div style="display:flex; gap:5px;">
@@ -109,14 +105,19 @@
 <div id="player-ui" class="page-section">
     <div class="container" style="max-width: 500px; margin: 20px auto; text-align: center;">
         <div style="font-size:2rem; font-weight:bold; color:#fff;">Score: <span id="p-score">0</span></div>
-        <div id="player-status-area" style="margin:10px; min-height:30px; font-weight:bold; color:var(--danger);"></div>
+        <div id="player-status-area" style="margin:10px; min-height:10px;"></div>
         <div id="name-input-area">
-            <input type="text" id="p-name" placeholder="名前" style="width:80%; padding:12px; font-size:1.2rem; border-radius:8px; border:2px solid #333; margin-bottom:10px; text-align:center; background:#0d1117; color:#fff;">
-            <button id="p-lock-btn" onclick="lockName()" style="width:80%; padding:10px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold;">参加</button>
+            <input type="text" id="p-name" placeholder="名前" style="width:80%; padding:15px; font-size:1.3rem; border-radius:10px; border:2px solid #333; margin-bottom:10px; text-align:center; background:#0d1117; color:#fff;">
+            <button id="p-lock-btn" onclick="lockName()" style="width:80%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; font-size:1.1rem;">参加する</button>
         </div>
-        <div id="locked-name-display" style="display:none; font-size:1.2rem; margin-bottom:15px; color:#aaa;"><strong id="current-player-name" style="color:#fff;"></strong></div>
-        <div id="board-input-ui" style="display:none; margin-bottom:20px; background:#064e3b; padding:15px; border-radius:12px; border:2px solid var(--success);"><input type="text" id="board-text" placeholder="回答を入力" oninput="reportTyping(this.value)" style="width:90%; padding:12px; font-size:1.5rem; border-radius:8px; border:2px solid var(--success); background:#000; color:#fff;"><br><br><button onclick="sendBoardAns()" style="padding:12px 30px; background:var(--success); color:white; border:none; border-radius:8px; font-weight:bold; font-size:1.1rem;">送信</button></div>
-        <button id="remote-button" style="width:150px; height:150px; border-radius:50%; font-size:1.8rem; font-weight:bold; cursor:pointer; border:6px solid #333;" onclick="pushBtn()">PUSH</button>
+        <div id="locked-name-display" style="display:none; margin-bottom:20px;">
+            <div style="font-size:1.2rem; color:#aaa;">Player: <strong id="current-player-name" style="color:#fff;"></strong></div>
+        </div>
+        <div id="board-input-ui" style="display:none; margin-top:10px; background:#064e3b; padding:25px; border-radius:15px; border:2px solid var(--success);">
+            <input type="text" id="board-text" placeholder="ここに答えを入力" oninput="reportTyping(this.value)" style="width:95%; padding:15px; font-size:1.8rem; border-radius:10px; border:2px solid var(--success); background:#000; color:#fff; text-align:center;">
+            <br><br>
+            <button onclick="sendBoardAns()" style="width:95%; padding:15px; background:var(--success); color:white; border:none; border-radius:10px; font-weight:bold; font-size:1.3rem;">回答を送信</button>
+        </div>
     </div>
 </div>
 
@@ -126,7 +127,7 @@
     const db = firebase.database();
     
     let stockData = [], historyList = [], currentQuiz = { q: "", a: "" };
-    let subWindow = null, isPlayerLocked = false;
+    let subWindow = null, isPlayerLocked = false, focusedPlayer = "";
 
     const hEsc = (s) => { const e = document.createElement('div'); e.textContent = s; return e.innerHTML; };
     const safeName = (n) => n.replace(/[.#$/[\]]/g, "_");
@@ -137,18 +138,19 @@
         db.ref().on('value', snap => {
             const d = snap.val() || {};
             const scoreEntries = Object.entries(d.scores || {}).sort((a,b)=>b[1]-a[1]);
+            focusedPlayer = d.focusedPlayer || "";
             
             document.getElementById('full-mgr-list').innerHTML = scoreEntries.map(([n,v]) => {
-                const w = d.waits?.[n] || 0;
-                return `<div class="mgr-item"><div style="display:flex;justify-content:space-between"><span><b>${hEsc(n)}</b>: ${v}pt (休${w})</span><button onclick="removePlayer('${n}')">🗑️</button></div><div><button onclick="modifyScore('${n}',1)">+1</button><button onclick="modifyScore('${n}',-1)">-1</button> | <button onclick="modifyWait('${n}',1)">休+</button><button onclick="modifyWait('${n}',-1)">休-</button></div></div>`;
+                return `<div class="mgr-item"><div style="display:flex;justify-content:space-between"><span><b>${hEsc(n)}</b>: ${v}pt</span><button onclick="removePlayer('${n}')">🗑️</button></div><div><button onclick="modifyScore('${n}',1)">+1</button><button onclick="modifyScore('${n}',-1)">-1</button></div></div>`;
             }).join('');
 
             if (d.boardAnswers) {
                 document.getElementById('board-list-inner').innerHTML = Object.entries(d.boardAnswers).map(([n, ans]) => {
                     const sn = safeName(n);
                     const isCorrect = d.correctList?.[sn]; const isWrong = d.wrongList?.[sn];
-                    let cls = "board-mgr-item" + (isCorrect ? " is-correct" : (isWrong ? " is-wrong" : ""));
-                    return `<div class="${cls}"><span><b>${hEsc(n)}</b>: ${hEsc(ans)}</span><div style="display:flex; gap:5px;"><button class="btn-indiv-ok" onclick="judge(true, '${n}')">⭕</button><button class="btn-indiv-ng" onclick="judge(false, '${n}')">⚠ 公開</button></div></div>`;
+                    const isFocus = (focusedPlayer === n);
+                    let cls = "board-mgr-item" + (isCorrect ? " is-correct" : (isWrong ? " is-wrong" : (isFocus ? " is-focus" : "")));
+                    return `<div class="${cls}"><span><b>${hEsc(n)}</b>: ${hEsc(ans)}</span><div style="display:flex; gap:5px;"><button class="btn-focus" onclick="pickUp('${n}')">🔍</button><button class="btn-indiv-ok" onclick="judge(true, '${n}')">⭕</button><button class="btn-indiv-ng" onclick="judge(false, '${n}')">⚠ 公開</button></div></div>`;
                 }).join('');
             } else { document.getElementById('board-list-inner').innerHTML = ""; }
             
@@ -162,21 +164,17 @@
         });
     }
 
+    function pickUp(name) { db.ref('focusedPlayer').set(focusedPlayer === name ? "" : name); }
     function toggleRanking() { db.ref('rankVisible').transaction(v => v === undefined ? false : !v); }
     function addStock() {
-        const q = document.getElementById('manual-q').value.trim();
-        const a = document.getElementById('manual-a').value.trim();
+        const q = document.getElementById('manual-q').value.trim(), a = document.getElementById('manual-a').value.trim();
         if(!q || !a) return;
-        stockData.push({q, a});
-        document.getElementById('manual-q').value = ""; document.getElementById('manual-a').value = "";
-        renderStock();
+        stockData.push({q, a}); document.getElementById('manual-q').value = ""; document.getElementById('manual-a').value = ""; renderStock();
     }
     function applyManual() {
-        const q = document.getElementById('manual-q').value.trim();
-        const a = document.getElementById('manual-a').value.trim();
+        const q = document.getElementById('manual-q').value.trim(), a = document.getElementById('manual-a').value.trim();
         if(!q || !a) return;
-        applyQuiz(q, a);
-        document.getElementById('manual-q').value = ""; document.getElementById('manual-a').value = "";
+        applyQuiz(q, a); document.getElementById('manual-q').value = ""; document.getElementById('manual-a').value = "";
     }
     function renderStock() {
         document.getElementById('quiz-list-area').innerHTML = stockData.map((i, idx) => `<div class="stock-item" onclick="applyQuizFromStock(${idx})"><div style="display:flex; justify-content:space-between"><strong style="color:var(--success);">${hEsc(i.a)}</strong><button onclick="event.stopPropagation(); stockData.splice(${idx},1); renderStock();">🗑️</button></div><div style="font-size:0.8rem; color:#ccc; margin-top:3px;">${hEsc(i.q)}</div></div>`).join('');
@@ -187,15 +185,11 @@
         currentQuiz = { q, a }; 
         document.getElementById('display').innerText = "【正解：" + a + "】\n" + q; 
         if(!historyList.some(h => h.q === q)) { historyList.push({q, a}); renderHistory(); }
-        db.ref().update({ status: "waiting", winner: "", correctList: null, wrongList: null, boardAnswers: null, typing: null, finalReveal: false, isGameSet: false }); 
+        db.ref().update({ status: "waiting", correctList: null, wrongList: null, boardAnswers: null, typing: null, finalReveal: false, isGameSet: false, focusedPlayer: "" }); 
         if(subWindow) subWindow.resetForNext(); 
     }
 
-    function startQuizFull() {
-        db.ref('status').set('active');
-        requestSound('type');
-        if(subWindow) subWindow.document.getElementById('text').innerText = currentQuiz.q;
-    }
+    function startQuizFull() { db.ref('status').set('active'); requestSound('type'); if(subWindow) subWindow.document.getElementById('text').innerText = currentQuiz.q; }
 
     function judge(isOK, pName) {
         if(isOK) requestSound('correct');
@@ -209,26 +203,22 @@
 
     function revealAnswer() { db.ref('finalReveal').set(true); if(subWindow) subWindow.reveal(currentQuiz.a, currentQuiz.q); }
     function modifyScore(n, v) { db.ref('scores/'+safeName(n)).transaction(s => (s||0)+v); }
-    function modifyWait(n, v) { db.ref('waits/'+safeName(n)).transaction(w => Math.max(0, (w||0)+v)); }
     function removePlayer(n) { if(confirm(`${n} を削除？`)) db.ref('scores/' + safeName(n)).remove(); }
     function renderHistory() { document.getElementById('history-list').innerHTML = historyList.slice().reverse().map(h => `<div class="mgr-item" onclick="applyQuiz('${hEsc(h.q.replace(/'/g,"\\'"))}', '${hEsc(h.a.replace(/'/g,"\\'"))}')" style="cursor:pointer;"><strong>${hEsc(h.a)}</strong><small>${hEsc(h.q)}</small></div>`).join(''); }
-    function resetAll() { if (confirm("リセット？")) db.ref().set({ status: "idle", mode: "all_board", rankVisible: true, isGameSet: false }); historyList = []; renderHistory(); }
+    function resetAll() { if (confirm("リセット？")) { db.ref().set({ status: "idle", rankVisible: true, isGameSet: false, focusedPlayer: "" }); historyList = []; renderHistory(); } }
 
     // --- Player Logic ---
     function lockName() { const n = document.getElementById('p-name').value.trim(); if(!n) return; isPlayerLocked = true; document.getElementById('p-name').disabled = true; document.getElementById('p-lock-btn').style.display = 'none'; document.getElementById('locked-name-display').style.display = 'block'; document.getElementById('current-player-name').innerText = n; }
     function initPlayer() { 
         db.ref().on('value', snap => { 
             if(!isPlayerLocked) return; 
-            const d = snap.val() || {}; const name = document.getElementById('p-name').value.trim(); const sn = safeName(name);
+            const d = snap.val() || {}; const sn = safeName(document.getElementById('p-name').value.trim());
             document.getElementById('p-score').innerText = d.scores?.[sn] || 0; 
-            const showBoard = (d.mode === 'all_board' && d.status !== 'waiting') || (d.winner === name); 
-            document.getElementById('board-input-ui').style.display = showBoard ? 'block' : 'none'; 
-            document.getElementById('remote-button').disabled = !(d.status === 'active' && !d.winner && d.mode !== 'all_board');
+            document.getElementById('board-input-ui').style.display = (d.status === 'active') ? 'block' : 'none'; 
         }); 
     }
     function reportTyping(val) { const name = safeName(document.getElementById('p-name').value.trim()); if(isPlayerLocked) db.ref('typing/'+name).set(val.length > 0); }
-    function sendBoardAns() { const name = safeName(document.getElementById('p-name').value.trim()), t = document.getElementById('board-text').value.trim(); if(name && t) { db.ref('boardAnswers/'+name).set(t); db.ref('typing/'+name).set(false); document.getElementById('board-text').value=""; } }
-    function pushBtn() { const name = document.getElementById('p-name').value.trim(); if(isPlayerLocked) db.ref('winner').transaction(c => c ? undefined : name, (err, ok) => { if(ok) { db.ref('status').set('pushed'); requestSound('push'); } }); }
+    function sendBoardAns() { const name = safeName(document.getElementById('p-name').value.trim()), t = document.getElementById('board-text').value.trim(); if(name && t) { db.ref('boardAnswers/'+name).set(t); db.ref('typing/'+name).set(false); document.getElementById('board-text').value=""; alert("送信しました！"); } }
 
     // --- Sub Window ---
     function openSubWindow() {
@@ -241,29 +231,18 @@
             #text{font-size:3.5rem;font-weight:bold;text-align:center;line-height:1.4;}
             #ans{display:none;font-size:5rem;color:#f1c40f;border:10px solid #f1c40f;padding:20px;margin-top:30px;border-radius:20px;}
             #board-area{display:flex;flex-wrap:wrap;justify-content:center;gap:20px;margin-top:30px;width:100%;}
-            .board-box{background:#222;padding:20px;border-radius:15px;min-width:200px;text-align:center;border:4px solid #444;}
+            .board-box{background:#222;padding:15px;border-radius:15px;min-width:180px;text-align:center;border:4px solid #444;transition:0.5s;}
             .board-box.correct{border-color:#2ecc71;background:#041;}
+            .board-box.big{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:60%;z-index:50;display:flex;flex-direction:column;justify-content:center;font-size:5rem;background:#111;border:10px solid #4aa3ff;box-shadow:0 0 50px rgba(0,0,0,1);}
             #result-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;flex-direction:row;padding:50px;box-sizing:border-box;}
             .res-col{flex:1;display:flex;flex-direction:column;align-items:center;}
             .hist-col{flex:1.2;background:rgba(255,255,255,0.05);border-radius:20px;padding:20px;overflow-y:auto;border:1px solid #444;}
-            .hist-item{border-bottom:1px solid #333;padding:12px 0;}
-            .hist-a{color:#f1c40f;font-weight:bold;font-size:1.3rem;}
-            @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.4;}}
         </style></head><body>
             <div id="main"><div id="text"></div><div id="ans"></div><div id="board-area"></div></div>
             <div id="rank-side"><h3>RANKING</h3><div id="rank-list"></div></div>
-            <div id="result-overlay">
-                <div class="res-col">
-                    <h1 style="color:#f1c40f;font-size:3.5rem;margin-top:0;">🏆 FINAL RESULT</h1>
-                    <div id="final-rank-list" style="width:100%;text-align:center;font-size:2rem;"></div>
-                </div>
-                <div class="hist-col">
-                    <h2 style="border-bottom:2px solid #f1c40f;padding-bottom:10px;">📜 QUIZ HISTORY</h2>
-                    <div id="final-history-list"></div>
-                </div>
-            </div>
+            <div id="result-overlay"><div class="res-col"><h1>🏆 FINAL RESULT</h1><div id="final-rank-list"></div></div><div class="hist-col"><h2>📜 HISTORY</h2><div id="final-history-list"></div></div></div>
             <script>
-                const sounds = { push: new Audio('sounds/push.mp3'), correct: new Audio('sounds/correct.mp3'), type: new Audio('sounds/type.mp3') };
+                const sounds = { correct: new Audio('sounds/correct.mp3'), type: new Audio('sounds/type.mp3') };
                 window.play = (s) => { if(sounds[s]) { sounds[s].currentTime = 0; sounds[s].play().catch(e=>0); } };
                 window.reveal = (a,q) => { document.getElementById('ans').innerText=a; document.getElementById('ans').style.display='block'; document.getElementById('text').innerText=q; };
                 window.resetForNext = () => { document.getElementById('ans').style.display='none'; document.getElementById('text').innerText=''; document.getElementById('board-area').innerHTML=''; };
@@ -272,7 +251,7 @@
                 window.showResult = (scoreList, history) => {
                     document.getElementById('result-overlay').style.display = 'flex';
                     document.getElementById('final-rank-list').innerHTML = scoreList.map(([n,v],i) => '<div style="margin:15px; color:'+(i===0?'#f1c40f':'#fff')+'">'+(i+1)+'位: '+n+' ('+v+'pt)</div>').join('');
-                    document.getElementById('final-history-list').innerHTML = history.map((h,i) => '<div class="hist-item"><div style="font-size:0.9rem;color:#888;">Q'+(i+1)+': '+h.q+'</div><div class="hist-a">A: '+h.a+'</div></div>').reverse().join('');
+                    document.getElementById('final-history-list').innerHTML = history.map((h,i) => '<div style="border-bottom:1px solid #333;padding:10px 0;"><small>Q'+(i+1)+': '+h.q+'</small><br><span style="color:#f1c40f;font-weight:bold;">A: '+h.a+'</span></div>').reverse().join('');
                 };
                 window.hideResult = () => { document.getElementById('result-overlay').style.display = 'none'; };
                 window.syncBoard = (d) => {
@@ -280,12 +259,13 @@
                     const players = Array.from(new Set([...Object.keys(d.boardAnswers || {}), ...Object.keys(d.typing || {})]));
                     area.innerHTML = players.map(n => {
                         const ans = d.boardAnswers?.[n]; const isTyping = d.typing?.[n];
+                        const isFocus = (d.focusedPlayer === n);
                         const sn = n.replace(/[.#$/[\\\]]/g, "_");
                         const isCorrect = d.correctList?.[sn]; const isWrong = d.wrongList?.[sn];
-                        const show = d.finalReveal || isWrong;
-                        let content = show ? (ans || "") : (ans ? "？？？" : (isTyping ? "<span style='color:#3498db;animation:blink 1s infinite'>🖊...</span>" : ""));
+                        const show = d.finalReveal || isWrong || isFocus;
+                        let content = show ? (ans || "") : (ans ? "？？？" : (isTyping ? "🖊..." : ""));
                         if(!content && !isTyping) return "";
-                        return '<div class="board-box '+(isCorrect?'correct':'')+'"><small>'+n+'</small><div style="font-size:2.5rem;font-weight:bold;color:#f1c40f;">'+content+'</div></div>';
+                        return '<div class="board-box '+(isCorrect?'correct':'')+' '+(isFocus?'big':'')+'"><small>'+n+'</small><div style="font-size:'+(isFocus?'8rem':'2.5rem')+';font-weight:bold;color:#f1c40f;">'+content+'</div></div>';
                     }).join('');
                 };
             <\/script></body></html>`);
