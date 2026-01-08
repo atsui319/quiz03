@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>QuizConsole Pro - Star Focus</title>
+    <title>QuizConsole Pro - Standard Board</title>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
@@ -25,12 +25,9 @@
         .board-mgr-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
         .board-mgr-item.is-correct { background: rgba(46, 204, 113, 0.2); border-left: 6px solid #2ecc71; }
         .board-mgr-item.is-wrong { background: rgba(100, 100, 100, 0.2); border-left: 6px solid #666; }
-        .board-mgr-item.is-star { background: rgba(74, 163, 255, 0.15); border-left: 6px solid var(--primary); }
 
-        .btn-star { background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn-star.active { background: var(--primary); color: white; }
-        .btn-indiv-ok { background: #16a34a; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn-indiv-ng { background: #4b5563; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-indiv-ok { background: #16a34a; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-indiv-ng { background: #4b5563; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
         .stock-area { flex: 1.2; display: flex; flex-direction: column; background: #161a22; border-radius: 12px; border: 1px solid #2a2f3a; padding: 15px; overflow: hidden; }
         #quiz-list-area { flex: 1; overflow-y: auto; background: #0d1117; border-radius: 8px; border: 1px solid #222; margin-top: 8px; }
@@ -71,7 +68,7 @@
             </div>
 
             <div id="boardResults">
-                <div style="padding:5px; background:#222; font-size:0.8rem; color:#888; text-align:center;">送信された回答（⭐注目 / ⭕判定）</div>
+                <div style="padding:5px; background:#222; font-size:0.8rem; color:#888; text-align:center;">送信された回答（個別判定）</div>
                 <div id="board-list-inner"></div>
             </div>
 
@@ -127,7 +124,7 @@
     const db = firebase.database();
     
     let stockData = [], historyList = [], currentQuiz = { q: "", a: "" };
-    let subWindow = null, isPlayerLocked = false, starFocus = "";
+    let subWindow = null, isPlayerLocked = false;
 
     const hEsc = (s) => { const e = document.createElement('div'); e.textContent = s; return e.innerHTML; };
     const safeName = (n) => n.replace(/[.#$/[\]]/g, "_");
@@ -138,7 +135,6 @@
         db.ref().on('value', snap => {
             const d = snap.val() || {};
             const scoreEntries = Object.entries(d.scores || {}).sort((a,b)=>b[1]-a[1]);
-            starFocus = d.starFocus || "";
             
             document.getElementById('full-mgr-list').innerHTML = scoreEntries.map(([n,v]) => {
                 return `<div class="mgr-item"><div style="display:flex;justify-content:space-between"><span><b>${hEsc(n)}</b>: ${v}pt</span><button onclick="removePlayer('${n}')">🗑️</button></div><div><button onclick="modifyScore('${n}',1)">+1</button><button onclick="modifyScore('${n}',-1)">-1</button></div></div>`;
@@ -148,9 +144,8 @@
                 document.getElementById('board-list-inner').innerHTML = Object.entries(d.boardAnswers).map(([n, ans]) => {
                     const sn = safeName(n);
                     const isCorrect = d.correctList?.[sn]; const isWrong = d.wrongList?.[sn];
-                    const isStar = (starFocus === n);
-                    let cls = "board-mgr-item" + (isCorrect ? " is-correct" : (isWrong ? " is-wrong" : (isStar ? " is-star" : "")));
-                    return `<div class="${cls}"><span><b>${hEsc(n)}</b>: ${hEsc(ans)}</span><div style="display:flex; gap:5px;"><button class="btn-star ${isStar?'active':''}" onclick="setStar('${n}')">⭐</button><button class="btn-indiv-ok" onclick="judge(true, '${n}')">⭕</button><button class="btn-indiv-ng" onclick="judge(false, '${n}')">⚠ 公開</button></div></div>`;
+                    let cls = "board-mgr-item" + (isCorrect ? " is-correct" : (isWrong ? " is-wrong" : ""));
+                    return `<div class="${cls}"><span><b>${hEsc(n)}</b>: ${hEsc(ans)}</span><div style="display:flex; gap:5px;"><button class="btn-indiv-ok" onclick="judge(true, '${n}')">⭕</button><button class="btn-indiv-ng" onclick="judge(false, '${n}')">⚠ 公開</button></div></div>`;
                 }).join('');
             } else { document.getElementById('board-list-inner').innerHTML = ""; }
             
@@ -164,7 +159,6 @@
         });
     }
 
-    function setStar(name) { db.ref('starFocus').set(starFocus === name ? "" : name); }
     function toggleRanking() { db.ref('rankVisible').transaction(v => v === undefined ? false : !v); }
     function addStock() {
         const q = document.getElementById('manual-q').value.trim(), a = document.getElementById('manual-a').value.trim();
@@ -185,7 +179,7 @@
         currentQuiz = { q, a }; 
         document.getElementById('display').innerText = "【正解：" + a + "】\n" + q; 
         if(!historyList.some(h => h.q === q)) { historyList.push({q, a}); renderHistory(); }
-        db.ref().update({ status: "waiting", correctList: null, wrongList: null, boardAnswers: null, typing: null, finalReveal: false, isGameSet: false, starFocus: "" }); 
+        db.ref().update({ status: "waiting", correctList: null, wrongList: null, boardAnswers: null, typing: null, finalReveal: false, isGameSet: false }); 
         if(subWindow) subWindow.resetForNext(); 
     }
 
@@ -205,7 +199,7 @@
     function modifyScore(n, v) { db.ref('scores/'+safeName(n)).transaction(s => (s||0)+v); }
     function removePlayer(n) { if(confirm(`${n} を削除？`)) db.ref('scores/' + safeName(n)).remove(); }
     function renderHistory() { document.getElementById('history-list').innerHTML = historyList.slice().reverse().map(h => `<div class="mgr-item" onclick="applyQuiz('${hEsc(h.q.replace(/'/g,"\\'"))}', '${hEsc(h.a.replace(/'/g,"\\'"))}')" style="cursor:pointer;"><strong>${hEsc(h.a)}</strong><small>${hEsc(h.q)}</small></div>`).join(''); }
-    function resetAll() { if (confirm("リセット？")) { db.ref().set({ status: "idle", rankVisible: true, isGameSet: false, starFocus: "" }); historyList = []; renderHistory(); } }
+    function resetAll() { if (confirm("リセット？")) { db.ref().set({ status: "idle", rankVisible: true, isGameSet: false }); historyList = []; renderHistory(); } }
 
     // --- Player Logic ---
     function lockName() { const n = document.getElementById('p-name').value.trim(); if(!n) return; isPlayerLocked = true; document.getElementById('p-name').disabled = true; document.getElementById('p-lock-btn').style.display = 'none'; document.getElementById('locked-name-display').style.display = 'block'; document.getElementById('current-player-name').innerText = n; }
@@ -218,22 +212,21 @@
         }); 
     }
     function reportTyping(val) { const name = safeName(document.getElementById('p-name').value.trim()); if(isPlayerLocked) db.ref('typing/'+name).set(val.length > 0); }
-    function sendBoardAns() { const name = safeName(document.getElementById('p-name').value.trim()), t = document.getElementById('board-text').value.trim(); if(name && t) { db.ref('boardAnswers/'+name).set(t); db.ref('typing/'+name).set(false); document.getElementById('board-text').value=""; alert("送信完了"); } }
+    function sendBoardAns() { const name = safeName(document.getElementById('p-name').value.trim()), t = document.getElementById('board-text').value.trim(); if(name && t) { db.ref('boardAnswers/'+name).set(t); db.ref('typing/'+name).set(false); document.getElementById('board-text').value=""; alert("送信しました！"); } }
 
     // --- Sub Window ---
     function openSubWindow() {
         subWindow = window.open("", "QuizSub", "width=1200,height=800");
         subWindow.document.write(`<html><head><style>
             body{background:#000;color:#fff;font-family:sans-serif;margin:0;display:flex;overflow:hidden;}
-            #main{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px;}
+            #main{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px;transition:0.3s;}
             #rank-side{width:300px;background:#111;border-left:2px solid #333;padding:20px;transition:0.3s;}
             #rank-side.hidden{width:0;padding:0;border:none;overflow:hidden;}
             #text{font-size:3.5rem;font-weight:bold;text-align:center;line-height:1.4;}
             #ans{display:none;font-size:5rem;color:#f1c40f;border:10px solid #f1c40f;padding:20px;margin-top:30px;border-radius:20px;}
             #board-area{display:flex;flex-wrap:wrap;justify-content:center;gap:20px;margin-top:30px;width:100%;}
-            .board-box{background:#222;padding:15px;border-radius:15px;min-width:180px;text-align:center;border:4px solid #444;transition:0.4s;order:2;}
+            .board-box{background:#222;padding:15px;border-radius:15px;min-width:180px;text-align:center;border:4px solid #444;transition:0.5s;}
             .board-box.correct{border-color:#2ecc71;background:#041;}
-            .board-box.star{order:1;min-width:500px;border-color:#4aa3ff;box-shadow:0 0 30px rgba(74,163,255,0.4);}
             #result-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;flex-direction:row;padding:50px;box-sizing:border-box;}
             .res-col{flex:1;display:flex;flex-direction:column;align-items:center;}
             .hist-col{flex:1.2;background:rgba(255,255,255,0.05);border-radius:20px;padding:20px;overflow-y:auto;border:1px solid #444;}
@@ -259,14 +252,12 @@
                     const players = Array.from(new Set([...Object.keys(d.boardAnswers || {}), ...Object.keys(d.typing || {})]));
                     area.innerHTML = players.map(n => {
                         const ans = d.boardAnswers?.[n]; const isTyping = d.typing?.[n];
-                        const isStar = (d.starFocus === n);
                         const sn = n.replace(/[.#$/[\\\]]/g, "_");
                         const isCorrect = d.correctList?.[sn]; const isWrong = d.wrongList?.[sn];
                         const show = d.finalReveal || isWrong;
                         let content = show ? (ans || "") : (ans ? "？？？" : (isTyping ? "🖊..." : ""));
                         if(!content && !isTyping) return "";
-                        let fs = isStar ? "4.5rem" : "2.5rem";
-                        return '<div class="board-box '+(isCorrect?'correct':'')+' '+(isStar?'star':'')+'"><small>'+n+'</small><div style="font-size:'+fs+';font-weight:bold;color:#f1c40f;">'+content+'</div></div>';
+                        return '<div class="board-box '+(isCorrect?'correct':'')+'"><small>'+n+'</small><div style="font-size:2.5rem;font-weight:bold;color:#f1c40f;">'+content+'</div></div>';
                     }).join('');
                 };
             <\/script></body></html>`);
